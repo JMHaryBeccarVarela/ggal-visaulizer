@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans antialiased;
+    background: radial-gradient(
+        1200px 600px at 80% -10%,
+        rgba(245, 158, 11, 0.08),
+        transparent 60%
+      ),
+      radial-gradient(800px 400px at -10% 110%, rgba(34, 197, 94, 0.05), transparent 60%),
+      #0a0e14;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0e14;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1f2a36;
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a3744;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-bg-surface border border-border rounded-lg shadow-panel;
+  }
+  .panel-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-text-muted px-4 py-3 border-b border-border flex items-center justify-between;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium;
+  }
+  .pill-bull {
+    @apply pill bg-bull-bg text-bull;
+  }
+  .pill-bear {
+    @apply pill bg-bear-bg text-bear;
+  }
+  .pill-neutral {
+    @apply pill bg-bg-elev text-text-muted border border-border;
+  }
+  .btn {
+    @apply px-3 py-1.5 rounded-md text-sm font-medium border border-border bg-bg-elev hover:bg-bg-hover transition-colors;
+  }
+  .btn-accent {
+    @apply btn border-accent/40 text-accent hover:bg-accent/10;
+  }
+  .input {
+    @apply bg-bg-elev border border-border rounded-md px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent;
+  }
+}
+
+/* Flash animations para updates de cotizaciones */
+@keyframes flash-bull {
+  0% {
+    background-color: rgba(34, 197, 94, 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+@keyframes flash-bear {
+  0% {
+    background-color: rgba(239, 68, 68, 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.flash-bull {
+  animation: flash-bull 0.8s ease-out;
+}
+.flash-bear {
+  animation: flash-bear 0.8s ease-out;
+}
