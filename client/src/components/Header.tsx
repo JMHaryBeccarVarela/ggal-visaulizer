@@ -1,142 +1,91 @@
-import { useState } from "react";
 import { useMarket } from "../store/market";
-import { sendSpot } from "../lib/ws";
-import { fmtMinutes, fmtTime } from "../lib/format";
+import { fmtTime } from "../lib/format";
+import type { ConnState } from "../types";
 
-const MARKET_LABEL: Record<string, string> = {
-  open: "Mercado abierto",
-  "pre-open": "Pre-apertura",
-  closed: "Cerrado",
-  weekend: "Fin de semana",
-};
-
-const PRIMARY_LABEL: Record<string, string> = {
-  connected: "Primary conectado",
-  connecting: "Conectando…",
-  disconnected: "Desconectado",
-  idle: "En espera",
-};
-
-function StatusDot({ state }: { state: string }) {
-  const color =
-    state === "connected" || state === "open"
-      ? "bg-bull"
-      : state === "connecting" || state === "pre-open"
-        ? "bg-accent"
-        : "bg-bear";
-  const pulse = state === "connected" || state === "open" ? "animate-pulse" : "";
+function Dot({ on, warn }: { on: boolean; warn?: boolean }) {
+  const color = on ? "bg-bull" : warn ? "bg-accent" : "bg-text-dim";
   return (
-    <span className={`inline-block w-2 h-2 rounded-full ${color} ${pulse}`} />
+    <span className={`inline-block h-2 w-2 rounded-full ${color} ${on ? "animate-pulse" : ""}`} />
   );
 }
 
+function Badge({
+  label,
+  state,
+  on,
+  warn,
+}: {
+  label: string;
+  state: string;
+  on: boolean;
+  warn?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border bg-bg-elev px-2.5 py-1">
+      <Dot on={on} warn={warn} />
+      <span className="text-xs text-text-muted">{label}</span>
+      <span className="text-xs font-medium text-text">{state}</span>
+    </div>
+  );
+}
+
+const CONN_LABEL: Record<ConnState, string> = {
+  disconnected: "desconectado",
+  connecting: "conectando",
+  authenticating: "autenticando",
+  connected: "conectado",
+  idle: "en espera",
+  disabled: "no config.",
+};
+
 export function Header() {
-  const spot = useMarket((s) => s.spot);
-  const market = useMarket((s) => s.market);
-  const primaryState = useMarket((s) => s.primaryState);
-  const wsConnected = useMarket((s) => s.wsConnected);
-  const lastUpdate = useMarket((s) => s.lastUpdate);
-  const contracts = useMarket((s) => s.contracts);
-  const order = useMarket((s) => s.order);
+  const { status, wsConnected, lastUpdate } = useMarket();
 
-  const [spotInput, setSpotInput] = useState<string>("");
-
-  const onSpotSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const v = parseFloat(spotInput.replace(",", "."));
-    if (isFinite(v) && v > 0) {
-      sendSpot(v);
-      setSpotInput("");
-    } else if (spotInput.trim() === "") {
-      sendSpot(null);
-    }
-  };
-
-  const useFrontMonth = () => {
-    const front = order
-      .map((s) => contracts[s])
-      .find((c) => c && (c.last || c.mid || c.settlement));
-    if (!front) return;
-    const px = front.last ?? front.mid ?? front.settlement;
-    if (px) sendSpot(px);
-  };
+  const market = status?.market;
+  const us = status?.usMarket;
+  const primary = status?.primaryState ?? "disconnected";
+  const alpaca = status?.alpacaState ?? "disconnected";
 
   return (
-    <header className="border-b border-border bg-bg-surface/80 backdrop-blur sticky top-0 z-20">
-      <div className="px-6 py-3 flex items-center gap-6 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-gradient-to-br from-accent to-accent-bright flex items-center justify-center text-bg font-bold">
-            $
-          </div>
-          <div>
-            <div className="text-sm font-semibold tracking-wide">
-              Mesa de Futuros DLR
-            </div>
-            <div className="text-xs text-text-muted">
-              Matba Rofex · Primary API
-            </div>
-          </div>
+    <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
+        <div>
+          <h1 className="text-lg font-semibold text-text">
+            GGAL <span className="text-accent">· Tiempo real</span>
+          </h1>
+          <p className="text-xs text-text-dim">
+            ADR (NYSE) · Acción (BYMA) · Futuros (Rofex) · TNA / TEA implícita
+          </p>
         </div>
 
-        <div className="h-8 w-px bg-border" />
-
-        <div className="flex items-center gap-2">
-          <StatusDot state={market?.state ?? "closed"} />
-          <span className="text-sm">
-            {MARKET_LABEL[market?.state ?? "closed"]}
-          </span>
-          {market && (
-            <span className="text-xs text-text-muted">
-              ({market.nextChange.state === "open" ? "abre" : "cierra"} en{" "}
-              {fmtMinutes(market.nextChange.minutesUntil)})
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <StatusDot state={primaryState} />
-          <span className="text-sm">{PRIMARY_LABEL[primaryState]}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <StatusDot state={wsConnected ? "connected" : "disconnected"} />
-          <span className="text-sm">
-            {wsConnected ? "Server WS OK" : "Sin server"}
-          </span>
-        </div>
-
-        <div className="flex-1" />
-
-        <form onSubmit={onSpotSubmit} className="flex items-center gap-2">
-          <label className="text-xs text-text-muted">Spot referencia:</label>
-          <input
-            className="input w-28 text-right"
-            type="text"
-            inputMode="decimal"
-            placeholder={spot ? spot.toFixed(2) : "0,00"}
-            value={spotInput}
-            onChange={(e) => setSpotInput(e.target.value)}
-            title="Tipeá un valor y presioná Enter o Fijar"
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            label="BYMA/Rofex"
+            state={market?.open ? "abierto" : "cerrado"}
+            on={!!market?.open}
           />
-          <button
-            type="submit"
-            className="btn-accent"
-            title="Fijar el spot al valor ingresado (dejá vacío para volver al automático)"
-          >
-            Fijar
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={useFrontMonth}
-            title="Usar el precio del contrato más cercano al vencimiento como spot"
-          >
-            Usar más cercano
-          </button>
-        </form>
-
-        <div className="text-xs text-text-muted">
-          Última act: <span className="num">{fmtTime(lastUpdate)}</span>
+          <Badge
+            label="NYSE"
+            state={us?.open ? "abierto" : "cerrado"}
+            on={!!us?.open}
+          />
+          <Badge
+            label="Primary"
+            state={CONN_LABEL[primary]}
+            on={primary === "connected"}
+            warn={primary === "connecting"}
+          />
+          <Badge
+            label="Alpaca"
+            state={CONN_LABEL[alpaca]}
+            on={alpaca === "connected"}
+            warn={alpaca === "connecting" || alpaca === "authenticating"}
+          />
+          <div className="flex items-center gap-2 rounded-md border border-border bg-bg-elev px-2.5 py-1">
+            <Dot on={wsConnected} />
+            <span className="text-xs text-text-muted">Datos</span>
+            <span className="num text-xs text-text">{fmtTime(lastUpdate)}</span>
+          </div>
         </div>
       </div>
     </header>

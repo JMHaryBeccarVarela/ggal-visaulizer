@@ -1,84 +1,111 @@
-# Derivados — Screener de Futuros de Dólar (Matba Rofex)
+# GGAL · Tiempo real — ADR / BYMA / Futuros
 
-Screener en tiempo real para futuros de dólar (DLR) de A3 / Matba Rofex.
-Cotizaciones, puntas y libro L2 en vivo desde Primary API vía **pyRofex**.
+Landing en tiempo real para **Grupo Financiero Galicia (GGAL)**:
 
-> **Solo screener / terminal de información.** No envía órdenes, no es un
-> broker, no es DMA. La operatoria se hace desde E-Trader / Matriz.
+- **ADR GGAL** (NYSE/NASDAQ, USD) — vía **Alpaca Market Data** (feed IEX, gratis).
+- **Acción GGAL** (BYMA, ARS) — plazos **CI** y **24hs**, vía **Primary API / pyRofex**.
+- **Futuros GGAL** (Matba Rofex, ARS) — los **dos vencimientos** más cercanos.
+- **TNA y TEA implícitas** de cada futuro contra la acción GGAL (24hs).
+- **Dólar implícito (CCL)** derivado del ADR vs BYMA.
+
+> **Solo market data / terminal informativa.** No envía órdenes, no es un
+> broker, no es DMA.
 
 ## Arquitectura
 
 ```
-┌────────────────┐   pyRofex    ┌──────────────────┐    WS    ┌──────────────┐
-│  Primary API   │ ───────────► │  Python+FastAPI  │ ───────► │  React (Vite)│
-│ (Matba Rofex)  │  market data │   bridge / cache │  fanout  │   Tailwind   │
-└────────────────┘              └──────────────────┘          └──────────────┘
+┌───────────────┐  pyRofex   ┌──────────────────┐   WS   ┌──────────────┐
+│  Primary API  │ ─────────► │                  │ ─────► │              │
+│ (BYMA + Rofex)│ market data │  Python+FastAPI  │        │  React (Vite)│
+├───────────────┤            │   bridge + cache │ fanout │   Tailwind   │
+│  Alpaca Data  │ ─────────► │  + TNA/TEA + CCL │ ─────► │              │
+│   (ADR GGAL)  │  websocket  │                  │        │              │
+└───────────────┘            └──────────────────┘        └──────────────┘
 ```
 
-- **server/** — Python + FastAPI + **pyRofex**. Se conecta a Primary (broker
-  Veta), mantiene el libro en memoria y reparte market data por WebSocket a
-  todos los clientes. Solo market data básico.
-- **client/** — Vite + React + TS + Tailwind. Tabla de contratos, DOM L2 y
-  biblioteca de estrategias.
+- **server/** — Python + FastAPI. `pyRofex` para BYMA/Rofex y un cliente
+  WebSocket propio para Alpaca. Descubre los instrumentos de GGAL, mantiene el
+  estado en memoria, calcula TNA/TEA/CCL y reparte un snapshot por WebSocket.
+- **client/** — Vite + React + TS + Tailwind. Tarjetas de ADR, acción y futuros
+  con la tasa implícita, actualizadas en vivo.
 
 ## Requisitos
 
-- **Node 20+** (cliente + orquestador)
-- **Python 3.11+** (server)
+- **Node 20+**
+- **Python 3.11+**
+- Credenciales de **Primary API** (tu broker, p.ej. Veta) — obligatorio.
+- Cuenta gratuita de **Alpaca** (API key + secret) — opcional, para el ADR.
 
 ## Setup
 
 ```bash
-# 1. Dependencias del cliente + concurrently (orquestador)
+# 1. Dependencias del cliente + orquestador
 npm install
 
 # 2. Dependencias del server Python
-npm run install:server      # = python -m pip install -r server/requirements.txt
+npm run install:server
 
-# 3. Levantar todo (server Python + cliente Vite) con un comando
+# 3. Credenciales
+cp server/.env.example server/.env   # y completá los valores
+
+# 4. Levantar todo (server + cliente) con un comando
 npm run dev
 ```
 
 Salida:
-- **Server** (FastAPI + pyRofex) → `http://localhost:8080`
-  - REST: `GET /api/health`, `GET /api/contracts`, `GET /api/snapshot`, `POST /api/spot`
+- **Server** (FastAPI) → `http://localhost:8080`
+  - REST: `GET /api/health`, `GET /api/snapshot`, `GET /api/instruments`
   - WS:   `ws://localhost:8080/ws`
 - **Client** (Vite) → `http://localhost:5173` *(abrir esto en el navegador)*
 
 Vite proxea `/api` y `/ws` al server, así que basta con abrir el cliente.
 
-### Otros scripts (desde la raíz)
+### Credenciales (`server/.env`)
 
-```bash
-npm run dev:server   # solo el server Python (uvicorn --reload)
-npm run dev:client   # solo el cliente Vite
-npm run build        # build de producción del cliente
-npm run typecheck    # tsc del cliente
+```ini
+# Primary API (BYMA + Rofex) — OBLIGATORIO
+PRIMARY_USER=...
+PRIMARY_PASS=...
+PRIMARY_ACCOUNT=...            # cuenta visible en tu broker
+PRIMARY_REST_URL=https://api.veta.xoms.com.ar/
+PRIMARY_WS_URL=wss://api.veta.xoms.com.ar/
+
+# Alpaca (ADR GGAL) — OPCIONAL (sin esto, el ADR no se muestra)
+ALPACA_KEY=...
+ALPACA_SECRET=...
+ALPACA_FEED=iex               # free = iex; sip es pago
+
+# Ajustes GGAL
+GGAL_SPOT_SETTLEMENT=24hs      # plazo usado como spot para la tasa (24hs | CI)
+GGAL_MAX_FUTURES=2             # vencimientos a mostrar (0 = todos)
+GGAL_ADR_RATIO=10              # acciones por ADR
 ```
 
-### Credenciales
+`server/.env` está gitignoreado: nunca se commitean las credenciales.
 
-`server/.env` trae las credenciales de Primary/Veta (gitignored). La cuenta
-(`PRIMARY_ACCOUNT`) es la cuenta visible del usuario en Veta (ej. `50054`).
-Ver `server/.env.example`.
+## Cálculo de la tasa
 
-## Horario de mercado
+Para cada futuro, con `F` = precio del futuro, `S` = spot (GGAL 24hs) y
+`n` = días corridos al vencimiento:
 
-Futuros DLR: **10:20 a 17:10 ART** (lun–vie, UTC-3). Fuera de horario el
-server no abre el websocket de Primary (`primaryState: idle/disconnected`)
-y el cliente muestra los últimos datos cacheados.
+```
+base = F / S - 1
+TNA  = base · (365 / n)            # nominal anual, base 365
+TEA  = (F / S) ^ (365 / n) - 1     # efectiva anual
+```
 
-## Datos que provee el server (market data básico)
+El dólar implícito (CCL) se calcula como `precio_BYMA · ratio_ADR / ADR_USD`.
 
-Por cada contrato DLR: bid/ask + size, mid, último, OHLC, cierre previo,
-settlement, volumen, open interest, trade count, spread (abs y bps),
-variación %, y **libro L2** (hasta 5 niveles por lado). El spot (DLR/SPOT)
-se ingesta automático y se puede sobrescribir manual desde el header.
+## Horarios
 
-La analítica (tasas implícitas, curva, spreads inter-mes, arbitrajes,
-Lecaps) se reconstruye en una etapa posterior sobre esta base.
+- **BYMA / Rofex**: rueda continua ~11:00–17:00 ART (lun–vie).
+- **NYSE/NASDAQ (ADR)**: 09:30–16:00 ET (con DST).
+
+El server mantiene los websockets conectados de forma permanente: con el
+mercado cerrado se ve el último estado (último operado, cierre, settlement).
+Los badges del header indican si cada mercado está abierto.
 
 ## Stack
 
-- Python 3.11+ · FastAPI · uvicorn · pyRofex · python-dotenv
+- Python 3.11+ · FastAPI · uvicorn · pyRofex · websocket-client · requests
 - Vite · React 18 · TypeScript · TailwindCSS · Zustand

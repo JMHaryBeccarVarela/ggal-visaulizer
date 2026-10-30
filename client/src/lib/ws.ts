@@ -14,8 +14,7 @@ function wsUrl(): string {
 
 export function connectWs(): void {
   if (socket && socket.readyState !== WebSocket.CLOSED) return;
-  const url = wsUrl();
-  const ws = new WebSocket(url);
+  const ws = new WebSocket(wsUrl());
   socket = ws;
 
   ws.onopen = () => {
@@ -41,12 +40,6 @@ export function connectWs(): void {
       case "snapshot":
         s.applySnapshot(msg.data);
         break;
-      case "quote":
-        s.applyQuote(msg.data);
-        break;
-      case "spot":
-        s.setSpot(msg.data);
-        break;
       case "status":
         s.setStatus(msg.data);
         break;
@@ -64,24 +57,15 @@ export function connectWs(): void {
     }
     socket = null;
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = window.setTimeout(() => {
-      connectWs();
-    }, reconnectDelay);
+    reconnectTimer = window.setTimeout(connectWs, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
   };
 
   ws.onerror = () => {
-    // dejamos que onclose maneje el reconnect
     try {
       ws.close();
     } catch {
-      /* ignore */
+      /* onclose maneja el reconnect */
     }
   };
-}
-
-export function sendSpot(spot: number | null): void {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: "setSpot", spot }));
-  }
 }

@@ -1,28 +1,119 @@
 import { useEffect } from "react";
 import { Header } from "./components/Header";
-import { KPIRow } from "./components/KPIRow";
-import { ContractsTable } from "./components/ContractsTable";
-import { DomPanel } from "./components/DomPanel";
-import { StrategyLibrary } from "./components/StrategyLibrary";
+import { QuoteCard } from "./components/QuoteCard";
+import { FutureCard } from "./components/FutureCard";
+import { useMarket } from "./store/market";
 import { connectWs } from "./lib/ws";
+import { fmtArs, fmtInt } from "./lib/format";
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+      {children}
+    </h2>
+  );
+}
 
 export default function App() {
   useEffect(() => {
     connectWs();
   }, []);
 
+  const { snapshot } = useMarket();
+  const adr = snapshot?.adr ?? null;
+  const spot = snapshot?.spot;
+  const futures = snapshot?.futures ?? [];
+  const spotUsed = spot?.used ?? "24hs";
+
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="px-6 py-5 space-y-5">
-        <KPIRow />
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5 items-start">
-          <ContractsTable />
-          <DomPanel />
+      <main className="mx-auto max-w-6xl space-y-6 px-6 py-6">
+        {/* Dólar implícito (CCL) */}
+        <div className="panel flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wider text-text-dim">
+              Dólar implícito (CCL vía GGAL)
+            </span>
+            <span className="num text-xl font-semibold text-accent-bright">
+              {snapshot?.ccl != null ? fmtArs(snapshot.ccl) : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wider text-text-dim">
+              Ratio ADR
+            </span>
+            <span className="num text-sm text-text">
+              {snapshot ? `${fmtInt(snapshot.adrRatio)} : 1` : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wider text-text-dim">
+              Spot de la tasa
+            </span>
+            <span className="num text-sm text-text">GGAL {spotUsed}</span>
+          </div>
+          <p className="ml-auto max-w-xs text-right text-[10px] text-text-dim">
+            CCL = precio BYMA × ratio ÷ ADR. TNA/TEA de cada futuro calculadas
+            contra GGAL {spotUsed}.
+          </p>
         </div>
-        <StrategyLibrary />
-        <footer className="text-center text-xs text-text-dim pt-4 pb-8">
-          Datos provistos por Primary API (pyRofex) · Matba Rofex · Screener — no operativo
+
+        {/* Contado: ADR + acción BYMA */}
+        <section className="space-y-3">
+          <SectionTitle>Contado</SectionTitle>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <QuoteCard
+              label="ADR GGAL"
+              venue="NYSE/NASDAQ"
+              currency="USD"
+              disabled={adr === null}
+              disabledNote="ADR no configurado · agregá ALPACA_KEY / ALPACA_SECRET en server/.env"
+              data={adr}
+            />
+            <QuoteCard
+              label="GGAL"
+              venue="BYMA · 24hs"
+              currency="ARS"
+              accent={spotUsed === "24hs"}
+              note={spotUsed === "24hs" ? "spot de la tasa" : undefined}
+              disabled={!spot?.t24}
+              disabledNote="Sin datos de GGAL 24hs"
+              data={spot?.t24 ?? null}
+            />
+            <QuoteCard
+              label="GGAL"
+              venue="BYMA · CI"
+              currency="ARS"
+              accent={spotUsed === "CI"}
+              note={spotUsed === "CI" ? "spot de la tasa" : undefined}
+              disabled={!spot?.ci}
+              disabledNote="Sin datos de GGAL CI"
+              data={spot?.ci ?? null}
+            />
+          </div>
+        </section>
+
+        {/* Futuros */}
+        <section className="space-y-3">
+          <SectionTitle>Futuros · TNA / TEA implícita</SectionTitle>
+          {futures.length === 0 ? (
+            <div className="panel px-5 py-8 text-center text-sm text-text-dim">
+              Esperando futuros de GGAL… (si el server ya conectó y no aparecen,
+              revisá el ticker / segmento en <span className="num">server/.env</span>)
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {futures.map((f) => (
+                <FutureCard key={f.symbol} fut={f} spotLabel={spotUsed} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <footer className="pb-8 pt-2 text-center text-xs text-text-dim">
+          Datos: Primary API (pyRofex · BYMA/Rofex) + Alpaca (ADR). Terminal
+          informativa — no operativa.
         </footer>
       </main>
     </div>

@@ -1,10 +1,10 @@
-const nfPrice = new Intl.NumberFormat("es-AR", {
+const nfArs = new Intl.NumberFormat("es-AR", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const nfPriceWide = new Intl.NumberFormat("es-AR", {
-  minimumFractionDigits: 3,
-  maximumFractionDigits: 3,
+const nfUsd = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 const nfInt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
 const nfPct = new Intl.NumberFormat("es-AR", {
@@ -14,7 +14,22 @@ const nfPct = new Intl.NumberFormat("es-AR", {
 
 export function fmtPrice(n: number | null | undefined, decimals = 2): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
-  return decimals === 3 ? nfPriceWide.format(n) : nfPrice.format(n);
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(n);
+}
+
+/** Pesos argentinos: "$ 7.250,50" */
+export function fmtArs(n: number | null | undefined): string {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  return `$ ${nfArs.format(n)}`;
+}
+
+/** Dólares: "US$ 72.53" */
+export function fmtUsd(n: number | null | undefined): string {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  return `US$ ${nfUsd.format(n)}`;
 }
 
 export function fmtInt(n: number | null | undefined): string {
@@ -22,25 +37,27 @@ export function fmtInt(n: number | null | undefined): string {
   return nfInt.format(n);
 }
 
+/** Recibe una fracción (0.0345) y la muestra como porcentaje ("3,45%"). */
 export function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
   return `${nfPct.format(n * 100)}%`;
 }
 
-export function fmtBps(n: number | null | undefined): string {
+/** Igual que fmtPct pero con signo explícito (+/−). */
+export function fmtSignedPct(n: number | null | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
-  return `${nfPct.format(n)} bps`;
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${nfPct.format(n * 100)}%`;
 }
 
-export function fmtDate(yyyymmdd: string | null): string {
+export function fmtDate(yyyymmdd: string | null | undefined): string {
   if (!yyyymmdd || yyyymmdd.length !== 8) return "—";
-  return `${yyyymmdd.slice(6, 8)}/${yyyymmdd.slice(4, 6)}/${yyyymmdd.slice(2, 4)}`;
+  return `${yyyymmdd.slice(6, 8)}/${yyyymmdd.slice(4, 6)}/${yyyymmdd.slice(0, 4)}`;
 }
 
 export function fmtTime(ts: number | null | undefined): string {
   if (!ts) return "—";
-  const d = new Date(ts);
-  return d.toLocaleTimeString("es-AR", {
+  return new Date(ts).toLocaleTimeString("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -53,12 +70,5 @@ export function fmtMinutes(min: number): string {
   const m = Math.round(min % 60);
   if (h < 24) return `${h}h ${m}m`;
   const d = Math.floor(h / 24);
-  const rh = h % 24;
-  return `${d}d ${rh}h`;
-}
-
-export function shortSymbol(symbol: string): string {
-  // "DLR/MAY26" -> "MAY26"
-  const idx = symbol.indexOf("/");
-  return idx >= 0 ? symbol.slice(idx + 1) : symbol;
+  return `${d}d ${h % 24}h`;
 }

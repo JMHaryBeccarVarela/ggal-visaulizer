@@ -1,10 +1,13 @@
 """
-Cliente de Primary API vía pyRofex.
+Cliente de Primary API vía pyRofex para GGAL.
+
+Descubre y suscribe:
+  - Acción GGAL en BYMA (MERV), plazos CI y 24hs  → spot.
+  - Futuros GGAL en ROFX, los N vencimientos más cercanos.
 
 Responsabilidades:
-  - bootstrap: setear URLs de veta, autenticar (REST) y descargar catálogo.
-  - administrar la conexión websocket según horario de mercado.
-  - rutear callbacks de market data al store.
+  - bootstrap: setear URLs de Veta, autenticar (REST) y descargar catálogo.
+  - administrar la conexión websocket y rutear market data al store.
 
 Solo market data. No envía órdenes.
 """
@@ -22,9 +25,6 @@ from .store import store
 
 log = logging.getLogger("primary")
 
-# Futuro DLR directo: DLR/MMMYY (excluye opciones, calendar spreads, margen, SPOT)
-_FUT_RE = re.compile(r"^DLR/[A-Z]{3}\d{2}$")
-
 _MD_ENTRIES = [
     pyRofex.MarketDataEntry.BIDS,
     pyRofex.MarketDataEntry.OFFERS,
@@ -36,10 +36,18 @@ _MD_ENTRIES = [
     pyRofex.MarketDataEntry.LOW_PRICE,
     pyRofex.MarketDataEntry.TRADE_VOLUME,
     pyRofex.MarketDataEntry.OPEN_INTEREST,
-    pyRofex.MarketDataEntry.TRADE_EFFECTIVE_VOLUME,
     pyRofex.MarketDataEntry.NOMINAL_VOLUME,
     pyRofex.MarketDataEntry.TRADE_COUNT,
 ]
+
+
+def _ticker_patterns(ticker: str) -> tuple[re.Pattern, re.Pattern]:
+    tk = re.escape(ticker)
+    # Futuro GGAL en Rofex: "GGAL/MMMYY" (p.ej. GGAL/DIC25). Excluye opciones/spreads.
+    fut = re.compile(rf"^{tk}/[A-Z]{{3}}\d{{2}}$", re.IGNORECASE)
+    # Acción en BYMA: "MERV - XMEV - GGAL - 24hs" / "- CI" / "- 48hs".
+    eq = re.compile(rf"{tk}\s*-\s*(CI|24hs|48hs)\s*$", re.IGNORECASE)
+    return fut, eq
 
 
 class PrimaryClient:
@@ -47,7 +55,6 @@ class PrimaryClient:
         self._state = "disconnected"  # disconnected|connecting|connected|idle
         self._bootstrapped = False
         self._symbols: list[str] = []
-        self._spot_symbol: str | None = None
         self._ws_open = False
         self._lock = threading.Lock()
 
@@ -55,9 +62,13 @@ class PrimaryClient:
     def state(self) -> str:
         return self._state
 
+    @property
+    def bootstrapped(self) -> bool:
+        return self._bootstrapped
+
     # ---------- bootstrap (REST) ----------
     def bootstrap(self) -> None:
-        """Auth + catálogo. Idempotente. Independiente del horario."""
+        """Auth + catálogo + descubrimiento de instrumentos GGAL. Idempotente."""
         if self._bootstrapped:
             return
         log.info("Bootstrap pyRofex (veta)...")
@@ -73,29 +84,57 @@ class PrimaryClient:
         det = pyRofex.get_detailed_instruments()
         instruments = det.get("instruments", []) if isinstance(det, dict) else []
 
+        fut_re, eq_re = _ticker_patterns(config.equity_ticker)
         futures: list[dict] = []
-        spot_symbol: str | None = None
+        eq_by_term: dict[str, dict] = {}  # 'ci' | '24hs' | '48hs' -> instrument
+
         for i in instruments:
-            sym = i.get("instrumentId", {}).get("symbol", "")
-            mid = i.get("instrumentId", {}).get("marketId")
-            if mid and mid != config.market_id:
+            iid = i.get("instrumentId", {})
+            sym = iid.get("symbol", "")
+            if not sym:
                 continue
-            if _FUT_RE.match(sym):
+            if fut_re.match(sym):
+                mid = iid.get("marketId")
+                if mid and config.futures_market and mid != config.futures_market:
+                    continue
                 futures.append(i)
-            elif sym == f"{config.symbol_prefix}SPOT":
-                spot_symbol = sym
+                continue
+            m = eq_re.search(sym)
+            if m:
+                eq_by_term[m.group(1).lower()] = i
 
         futures.sort(key=lambda x: x.get("maturityDate") or "99999999")
-        store.set_instruments(futures)
-        store.set_spot_symbol(spot_symbol)
+        if config.max_futures > 0:
+            futures = futures[: config.max_futures]
+
+        equity_ci = eq_by_term.get("ci")
+        equity_t24 = eq_by_term.get("24hs")
+
+        store.set_instruments(futures, equity_ci, equity_t24)
         self._symbols = [f["instrumentId"]["symbol"] for f in futures]
-        self._spot_symbol = spot_symbol
+        for inst in (equity_ci, equity_t24):
+            if inst:
+                self._symbols.append(inst["instrumentId"]["symbol"])
+
         self._bootstrapped = True
         log.info(
-            "Catálogo: %d futuros DLR%s",
-            len(self._symbols),
-            f" · Spot: {spot_symbol}" if spot_symbol else "",
+            "Catálogo GGAL: %d futuro(s) %s · acción CI=%s · 24hs=%s",
+            len(futures),
+            [f["instrumentId"]["symbol"] for f in futures],
+            equity_ci["instrumentId"]["symbol"] if equity_ci else "—",
+            equity_t24["instrumentId"]["symbol"] if equity_t24 else "—",
         )
+        if not futures:
+            log.warning(
+                "No se encontraron futuros de %s en %s. Revisá GGAL_EQUITY_TICKER "
+                "/ GGAL_FUTURES_MARKET o que tu cuenta tenga acceso al segmento.",
+                config.equity_ticker, config.futures_market,
+            )
+        if not (equity_ci or equity_t24):
+            log.warning(
+                "No se encontró la acción %s en BYMA (MERV). Revisá GGAL_EQUITY_TICKER.",
+                config.equity_ticker,
+            )
 
     # ---------- websocket ----------
     def _on_market_data(self, message: dict[str, Any]) -> None:
@@ -133,18 +172,15 @@ class PrimaryClient:
                 error_handler=self._on_error,
                 exception_handler=self._on_exception,
             )
-            tickers = list(self._symbols)
-            if self._spot_symbol:
-                tickers.append(self._spot_symbol)
             pyRofex.market_data_subscription(
-                tickers=tickers,
+                tickers=list(self._symbols),
                 entries=_MD_ENTRIES,
                 depth=5,
             )
             with self._lock:
                 self._ws_open = True
                 self._state = "connected"
-            log.info("WS conectado. Suscriptos %d instrumentos.", len(tickers))
+            log.info("WS conectado. Suscriptos %d instrumentos.", len(self._symbols))
         except Exception:  # noqa: BLE001
             log.exception("Fallo al conectar websocket")
             with self._lock:

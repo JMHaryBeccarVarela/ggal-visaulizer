@@ -30,6 +30,9 @@ npm-debug.log*
 .idea/
 *.swp
 
+# Claude Code — settings locales de la máquina (launch.json sí se versiona)
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db

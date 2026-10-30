@@ -1,11 +1,10 @@
 """
-Server FastAPI: bridge entre pyRofex (Primary) y el cliente React.
+Server FastAPI: bridge entre Primary (pyRofex) + Alpaca y el cliente React.
 
-  REST:  GET  /api/health
-         GET  /api/contracts
-         GET  /api/snapshot
-         POST /api/spot
-  WS:    /ws   (broadcast de snapshot/quote/spot/status)
+  REST:  GET /api/health
+         GET /api/snapshot      (snapshot computado: ADR, spot, futuros, TNA/TEA, CCL)
+         GET /api/instruments   (debug: instrumentos GGAL descubiertos)
+  WS:    /ws                    (broadcast de snapshot computado + status)
 
 Solo market data. No envía órdenes.
 """
@@ -18,10 +17,10 @@ import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
+from .alpaca import alpaca
 from .config import config
-from .market_hours import is_market_open, market_status
+from .market_hours import market_status, us_market_status
 from .primary import primary
 from .store import store
 
@@ -37,13 +36,22 @@ def _msg(type_: str, data=None) -> dict:
     return {"type": type_, "data": data, "ts": time.time() * 1000.0}
 
 
+def _status() -> dict:
+    return {
+        "primaryState": primary.state,
+        "alpacaState": alpaca.state,
+        "market": market_status(),
+        "usMarket": us_market_status(),
+    }
+
+
 class ConnectionManager:
     def __init__(self) -> None:
         self._clients: dict[WebSocket, asyncio.Queue] = {}
 
     async def connect(self, ws: WebSocket) -> asyncio.Queue:
         await ws.accept()
-        q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        q: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._clients[ws] = q
         log.info("Cliente WS conectado (%d totales)", len(self._clients))
         return q
@@ -68,55 +76,40 @@ manager = ConnectionManager()
 
 
 async def _broadcaster() -> None:
-    """Empuja quotes incrementales, spot y status a los clientes conectados."""
-    last_spot: float | None = None
+    """Reparte el snapshot computado cuando cambió algo, y el status cada ~1s."""
     last_status = 0.0
     while True:
         try:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.25)
             if manager.count == 0:
                 continue
 
-            # Quotes incrementales (símbolos que cambiaron)
-            for sym in store.take_dirty():
-                summary = store.build_summary(sym)
-                if summary:
-                    manager.broadcast(_msg("quote", summary))
+            if store.take_dirty():
+                manager.broadcast(_msg("snapshot", store.computed_snapshot()))
 
-            # Spot (solo en cambio)
-            spot = store.get_spot()
-            if spot != last_spot:
-                last_spot = spot
-                manager.broadcast(_msg("spot", spot))
-
-            # Status cada ~1s
             now = time.time()
             if now - last_status >= 1.0:
                 last_status = now
-                manager.broadcast(_msg("status", {
-                    "primaryState": primary.state,
-                    "market": market_status(),
-                }))
+                manager.broadcast(_msg("status", _status()))
         except asyncio.CancelledError:
             break
         except Exception:  # noqa: BLE001
             log.exception("Error en broadcaster")
 
 
-async def _hours_supervisor() -> None:
-    """Abre/cierra el websocket de Primary según horario de mercado."""
+async def _connection_supervisor() -> None:
+    """Mantiene el websocket de Primary conectado de forma permanente."""
     while True:
         try:
-            open_ = is_market_open()
-            if open_ and primary.state in ("disconnected", "idle"):
+            if not primary.bootstrapped:
+                await asyncio.to_thread(primary.bootstrap)
+            if primary.state in ("disconnected", "idle"):
                 await asyncio.to_thread(primary.connect_ws)
-            elif not open_ and primary.state in ("connected", "connecting"):
-                await asyncio.to_thread(primary.disconnect_ws, "mercado cerrado")
             await asyncio.sleep(30)
         except asyncio.CancelledError:
             break
         except Exception:  # noqa: BLE001
-            log.exception("Error en hours supervisor")
+            log.exception("Error en connection supervisor")
             await asyncio.sleep(30)
 
 
@@ -125,12 +118,18 @@ async def lifespan(app: FastAPI):
     log.info("Iniciando server en %s:%d", config.host, config.port)
     try:
         await asyncio.to_thread(primary.bootstrap)
+        # Conectar el WS ya en el arranque: trae el último snapshot completo.
+        await asyncio.to_thread(primary.connect_ws)
     except Exception:  # noqa: BLE001
-        log.exception("Bootstrap pyRofex falló (se reintentará al abrir mercado)")
+        log.exception("Bootstrap/conexión pyRofex falló (se reintentará)")
+
+    # Alpaca corre en su propio thread (no bloquea el arranque).
+    with contextlib.suppress(Exception):
+        alpaca.start()
 
     tasks = [
         asyncio.create_task(_broadcaster()),
-        asyncio.create_task(_hours_supervisor()),
+        asyncio.create_task(_connection_supervisor()),
     ]
     try:
         yield
@@ -139,10 +138,12 @@ async def lifespan(app: FastAPI):
             t.cancel()
         with contextlib.suppress(Exception):
             await asyncio.gather(*tasks, return_exceptions=True)
+        with contextlib.suppress(Exception):
+            alpaca.stop()
         await asyncio.to_thread(primary.disconnect_ws, "shutdown")
 
 
-app = FastAPI(title="Derivados · Screener DLR", lifespan=lifespan)
+app = FastAPI(title="GGAL · ADR / BYMA / Futuros", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -153,50 +154,27 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health():
-    return {
-        "ok": True,
-        "primaryState": primary.state,
-        "market": market_status(),
-        "ts": time.time() * 1000.0,
-    }
+    return {"ok": True, **_status(), "ts": time.time() * 1000.0}
 
 
-@app.get("/api/contracts")
-async def contracts():
-    return store.contracts()
+@app.get("/api/instruments")
+async def instruments():
+    return store.instruments_debug()
 
 
 @app.get("/api/snapshot")
 async def snapshot():
-    snap = store.snapshot()
-    snap["spot"] = store.get_spot()
-    snap["market"] = market_status()
-    snap["primaryState"] = primary.state
+    snap = store.computed_snapshot()
+    snap["status"] = _status()
     return snap
-
-
-class SpotBody(BaseModel):
-    spot: float | None = None
-
-
-@app.post("/api/spot")
-async def set_spot(body: SpotBody):
-    store.set_spot(body.spot)
-    return {"ok": True, "spot": store.get_spot()}
 
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     q = await manager.connect(ws)
 
-    # Snapshot inicial + status
-    snap = store.snapshot()
-    snap["spot"] = store.get_spot()
-    await ws.send_json(_msg("snapshot", snap))
-    await ws.send_json(_msg("status", {
-        "primaryState": primary.state,
-        "market": market_status(),
-    }))
+    await ws.send_json(_msg("snapshot", store.computed_snapshot()))
+    await ws.send_json(_msg("status", _status()))
 
     async def sender():
         while True:
@@ -207,12 +185,8 @@ async def ws_endpoint(ws: WebSocket):
     try:
         while True:
             raw = await ws.receive_json()
-            mtype = raw.get("type")
-            if mtype == "ping":
+            if raw.get("type") == "ping":
                 await ws.send_json(_msg("pong"))
-            elif mtype == "setSpot":
-                v = raw.get("spot")
-                store.set_spot(v if isinstance(v, (int, float)) and v > 0 else None)
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001
