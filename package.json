@@ -7,11 +7,11 @@
   ],
   "scripts": {
     "dev": "concurrently -n server,client -c blue,magenta --kill-others-on-fail \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "python -m uvicorn app.main:app --app-dir server --host 0.0.0.0 --port 8080 --reload --reload-dir server",
+    "dev:server": "py -muvicorn app.main:app --app-dir server --host 0.0.0.0 --port 8080 --reload --reload-dir server",
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w client",
     "typecheck": "npm run typecheck -w client",
-    "install:server": "python -m pip install -r server/requirements.txt",
+    "install:server": "py -mpip install -r server/requirements.txt",
     "start": "npm run dev"
   },
   "devDependencies": {
