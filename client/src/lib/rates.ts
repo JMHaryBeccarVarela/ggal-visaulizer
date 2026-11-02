@@ -11,3 +11,11 @@ export function tnaFromPrice(
   if (price <= 0 || spot <= 0 || days <= 0) return null;
   return (price / spot - 1) * (DAYS_BASIS / days);
 }
+
+// Color del spread de puntas (en pesos): <=10 verde, >10 y <=15 amarillo, >15 rojo.
+export function spreadColor(s: number | null | undefined): string {
+  if (s == null || !isFinite(s)) return "#5a6571";
+  if (s <= 10) return "#22c55e";
+  if (s <= 15) return "#fbbf24";
+  return "#ef4444";
+}

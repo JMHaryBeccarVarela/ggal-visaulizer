@@ -9,58 +9,78 @@
       rel="stylesheet"
     />
     <style>
-      :root { color-scheme: dark; }
+      :root { color-scheme: dark; font-size: 15px; }
       * { box-sizing: border-box; margin: 0; }
-      html, body { background: transparent; }
+      html, body { background: transparent; height: 100%; }
       body {
         font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
         font-variant-numeric: tabular-nums;
         user-select: none;
         overflow: hidden;
-      }
-      .card {
-        -webkit-app-region: drag; /* permite arrastrar la ventana en Electron */
         height: 100vh;
+      }
+      /* La card ocupa toda la ventana y se arrastra. El contenido escala con
+         el tamaño porque todo está en rem y el font-size raíz se ajusta por JS. */
+      .card {
+        -webkit-app-region: drag;
+        height: 100%;
         background: #0a0e14;
         color: #e6edf3;
-        border: 3px solid #ffffff;
-        border-radius: 22px;
-        padding: 14px 18px;
+        border: 0.2rem solid #ffffff;
+        border-radius: 1.4rem;
+        padding: 0.9rem 1.1rem;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 0.55rem;
+        overflow: hidden;
       }
       .hdr { display: flex; align-items: center; justify-content: space-between; }
-      .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .06em; font-size: 15px; }
-      .hdr-r { display: flex; align-items: center; gap: 8px; }
-      .dot { width: 9px; height: 9px; border-radius: 50%; background: #5a6571; }
-      .dot.on { background: #22c55e; box-shadow: 0 0 7px #22c55e; }
+      .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .05em; font-size: 1rem; }
+      .hdr-r { display: flex; align-items: center; gap: .5rem; }
+      .dot { width: .55rem; height: .55rem; border-radius: 50%; background: #5a6571; }
+      .dot.on { background: #22c55e; box-shadow: 0 0 .4rem #22c55e; }
       .x {
-        -webkit-app-region: no-drag;
-        cursor: pointer; color: #5a6571; font-size: 14px; line-height: 1;
-        padding: 2px 4px; border-radius: 4px;
+        -webkit-app-region: no-drag; cursor: pointer; color: #5a6571;
+        font-size: .9rem; line-height: 1; padding: 0 .15rem; border-radius: .2rem;
       }
       .x:hover { color: #e6edf3; background: rgba(255,255,255,.08); }
-      .adr { display: flex; align-items: baseline; gap: 8px; }
-      .adr .lbl { color: #8b96a3; font-size: 11px; }
-      .adr .px { font-size: 26px; font-weight: 600; }
-      .adr .chg { margin-left: auto; font-size: 13px; }
+      .adr { display: flex; align-items: baseline; gap: .5rem; }
+      .adr .lbl { color: #8b96a3; font-size: .72rem; }
+      .adr .px { font-size: 1.7rem; font-weight: 600; }
+      .adr .chg { margin-left: auto; font-size: .85rem; }
       .chg.up { color: #22c55e; } .chg.dn { color: #ef4444; }
+
       .near {
         background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
-        border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;
+        border-radius: .55rem; padding: .5rem .6rem;
+        display: flex; flex-direction: column; gap: .4rem;
       }
-      .nrow { display: flex; align-items: baseline; justify-content: space-between; }
-      .nrow .lbl { color: #8b96a3; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-      .nrow .val { color: #fbbf24; font-weight: 600; font-size: 14px; }
-      .nrow .val.sp { color: #e6edf3; }
-      .futs { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #1f2a36; padding-top: 8px; }
-      .frow { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; font-size: 13px; align-items: baseline; }
-      .fhead { color: #5a6571; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+      .near-hdr {
+        display: flex; justify-content: space-between; align-items: baseline;
+        color: #e6edf3; font-weight: 600; font-size: .85rem;
+      }
+      .near-hdr .days { color: #8b96a3; font-weight: 400; font-size: .7rem; }
+      .tnarow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem; }
+      .tcol { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
+      .tl { color: #5a6571; font-size: .62rem; text-transform: uppercase; letter-spacing: .03em; }
+      .tv { font-weight: 600; font-size: .98rem; }
+      .tv.bid { color: #22c55e; }
+      .tv.last { color: #fbbf24; }
+      .tv.ask { color: #ef4444; }
+      .near-foot {
+        display: flex; justify-content: space-between;
+        border-top: 1px solid rgba(245,158,11,.25); padding-top: .35rem;
+        font-size: .78rem; color: #8b96a3;
+      }
+      .near-foot b { color: #e6edf3; font-weight: 600; }
+
+      .futs { display: flex; flex-direction: column; gap: .25rem; }
+      .frow { display: grid; grid-template-columns: 1fr auto auto; gap: .9rem; font-size: .82rem; align-items: baseline; }
+      .fhead { color: #5a6571; font-size: .6rem; text-transform: uppercase; letter-spacing: .04em; }
       .fl { color: #e6edf3; }
-      .tb { color: #22c55e; text-align: right; min-width: 56px; }
-      .ta { color: #ef4444; text-align: right; min-width: 56px; }
-      .empty { color: #5a6571; font-size: 12px; padding: 4px 0; }
+      .tb { color: #22c55e; text-align: right; min-width: 3.4rem; }
+      .ta { color: #ef4444; text-align: right; min-width: 3.4rem; }
+      .empty { color: #5a6571; font-size: .78rem; padding: .2rem 0; }
     </style>
   </head>
   <body>
@@ -79,42 +99,58 @@
         <span class="chg" id="adr-chg">—</span>
       </div>
 
-      <div class="near">
-        <div class="nrow">
-          <span class="lbl" id="near-lbl">TNA · últ.</span>
-          <span class="val" id="near-tna">—</span>
+      <div class="near" id="near" style="display:none">
+        <div class="near-hdr"><span id="near-sym">—</span><span class="days" id="near-days"></span></div>
+        <div class="tnarow">
+          <div class="tcol"><div class="tl">TNA bid</div><div class="tv bid" id="t-bid">—</div></div>
+          <div class="tcol"><div class="tl">TNA últ</div><div class="tv last" id="t-last">—</div></div>
+          <div class="tcol"><div class="tl">TNA ask</div><div class="tv ask" id="t-ask">—</div></div>
         </div>
-        <div class="nrow">
-          <span class="lbl">Spread puntas</span>
-          <span class="val sp" id="near-sp">—</span>
+        <div class="near-foot">
+          <span>Spread <b class="sp" id="near-sp">—</b></span>
+          <span>Vol <b id="near-vol">—</b></span>
         </div>
       </div>
 
-      <div class="futs" id="futs">
-        <div class="frow fhead"><span>Futuro</span><span>TNA bid</span><span>TNA ask</span></div>
-        <div class="empty" id="empty">conectando…</div>
-      </div>
+      <div class="futs" id="futs"><div class="empty" id="empty">conectando…</div></div>
     </div>
 
     <script>
-      // API: por defecto Render; se puede sobrescribir con ?api=https://...
       const API = (new URLSearchParams(location.search).get("api") || "https://ggal-api.onrender.com").replace(/\/+$/, "");
       const WS_URL = (() => {
-        try {
-          const u = new URL(API);
-          return (u.protocol === "https:" ? "wss:" : "ws:") + "//" + u.host + "/ws";
-        } catch { return "wss://ggal-api.onrender.com/ws"; }
+        try { const u = new URL(API); return (u.protocol === "https:" ? "wss:" : "ws:") + "//" + u.host + "/ws"; }
+        catch { return "wss://ggal-api.onrender.com/ws"; }
       })();
+
+      // --- El widget es autosuficiente: enciende el feed solo al abrir ---
+      fetch(API + "/api/feed/start", { method: "POST" }).catch(() => {});
+
+      // --- Escalado responsive: el font-size raíz se adapta al tamaño ---
+      function fit() {
+        const w = document.documentElement.clientWidth;
+        const h = document.documentElement.clientHeight;
+        const s = Math.max(9, Math.min(30, Math.min(w / 22, h / 17.5)));
+        document.documentElement.style.fontSize = s + "px";
+      }
+      new ResizeObserver(fit).observe(document.documentElement);
+      window.addEventListener("resize", fit);
+      fit();
 
       const nf = (n, loc, d = 2) =>
         n == null || !isFinite(n) ? "—" : n.toLocaleString(loc, { minimumFractionDigits: d, maximumFractionDigits: d });
       const fmtUsd = (n) => (n == null || !isFinite(n) ? "—" : "US$ " + nf(n, "en-US"));
-      const fmtArs = (n) => (n == null || !isFinite(n) ? "—" : "$ " + nf(n, "es-AR"));
       const fmtPct = (n) => (n == null || !isFinite(n) ? "—" : nf(n * 100, "es-AR") + "%");
       const fmtSigned = (n) => (n == null || !isFinite(n) ? "—" : (n > 0 ? "+" : "") + nf(n * 100, "es-AR") + "%");
+      const fmtInt = (n) => (n == null || !isFinite(n) ? "—" : n.toLocaleString("es-AR", { maximumFractionDigits: 0 }));
+      const tna = (price, spot, days) => (price > 0 && spot > 0 && days > 0 ? (price / spot - 1) * (365 / days) : null);
 
-      const tna = (price, spot, days) =>
-        price > 0 && spot > 0 && days > 0 ? (price / spot - 1) * (365 / days) : null;
+      // color del spread: <=10 verde, >10 y <=15 amarillo, >15 rojo
+      function spreadColor(s) {
+        if (s == null || !isFinite(s)) return "#5a6571";
+        if (s <= 10) return "#22c55e";
+        if (s <= 15) return "#fbbf24";
+        return "#ef4444";
+      }
 
       let snapshot = null, status = null;
 
@@ -125,40 +161,49 @@
         const feedOn = !!(status && status.feedEnabled);
 
         document.getElementById("dot").className = "dot" + (feedOn ? " on" : "");
-
         document.getElementById("adr-px").textContent = fmtUsd(adr && adr.last);
         const chg = document.getElementById("adr-chg");
         const c = adr && adr.changePct;
         chg.textContent = c == null ? "—" : fmtSigned(c);
         chg.className = "chg " + (c != null && c < 0 ? "dn" : "up");
 
+        const near = document.getElementById("near");
         const nearest = futures[0] || null;
         if (nearest) {
+          near.style.display = "";
           const sref = nearest.spotRef || spotRef;
-          document.getElementById("near-lbl").textContent = "TNA " + nearest.label + " · últ.";
-          document.getElementById("near-tna").textContent = fmtPct(tna(nearest.last, sref, nearest.daysToMaturity));
+          document.getElementById("near-sym").textContent = nearest.label;
+          document.getElementById("near-days").textContent =
+            nearest.daysToMaturity != null ? nearest.daysToMaturity + "d" : "";
+          document.getElementById("t-bid").textContent = fmtPct(tna(nearest.bid, sref, nearest.daysToMaturity));
+          document.getElementById("t-last").textContent = fmtPct(tna(nearest.last, sref, nearest.daysToMaturity));
+          document.getElementById("t-ask").textContent = fmtPct(tna(nearest.ask, sref, nearest.daysToMaturity));
           const sp = nearest.ask != null && nearest.bid != null ? nearest.ask - nearest.bid : null;
-          document.getElementById("near-sp").textContent = sp == null ? "—" : fmtArs(sp);
+          const spEl = document.getElementById("near-sp");
+          spEl.textContent = sp == null ? "—" : nf(sp, "es-AR");
+          spEl.style.color = spreadColor(sp);
+          document.getElementById("near-vol").textContent = fmtInt(nearest.volume);
+        } else {
+          near.style.display = "none";
         }
 
+        // Tabla de los demás vencimientos (el más cercano ya va arriba)
         const futs = document.getElementById("futs");
-        futs.querySelectorAll(".frow:not(.fhead), .empty").forEach((el) => el.remove());
+        const rest = futures.slice(1);
         if (!futures.length) {
-          const e = document.createElement("div");
-          e.className = "empty";
-          e.textContent = feedOn ? "esperando datos…" : "datos en pausa (encendé en el sitio)";
-          futs.appendChild(e);
+          futs.innerHTML = '<div class="empty">' + (feedOn ? "esperando datos…" : "encendiendo datos…") + "</div>";
+        } else if (!rest.length) {
+          futs.innerHTML = "";
         } else {
-          for (const f of futures) {
+          let html = '<div class="frow fhead"><span>Futuro</span><span>TNA bid</span><span>TNA ask</span></div>';
+          for (const f of rest) {
             const sref = f.spotRef || spotRef;
-            const row = document.createElement("div");
-            row.className = "frow";
-            row.innerHTML =
-              '<span class="fl">' + f.label + "</span>" +
+            html +=
+              '<div class="frow"><span class="fl">' + f.label + "</span>" +
               '<span class="tb">' + fmtPct(tna(f.bid, sref, f.daysToMaturity)) + "</span>" +
-              '<span class="ta">' + fmtPct(tna(f.ask, sref, f.daysToMaturity)) + "</span>";
-            futs.appendChild(row);
+              '<span class="ta">' + fmtPct(tna(f.ask, sref, f.daysToMaturity)) + "</span></div>";
           }
+          futs.innerHTML = html;
         }
       }
 

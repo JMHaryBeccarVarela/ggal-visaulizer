@@ -1,6 +1,6 @@
 import { useMarket } from "../store/market";
-import { tnaFromPrice } from "../lib/rates";
-import { fmtUsd, fmtArs, fmtSignedPct, fmtPct } from "../lib/format";
+import { tnaFromPrice, spreadColor } from "../lib/rates";
+import { fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtInt } from "../lib/format";
 
 // Contenido del widget flotante (se monta dentro de la ventana Picture-in-Picture).
 // Usa el mismo store global, así que se actualiza en tiempo real con el feed.
@@ -15,15 +15,15 @@ export function Widget() {
   const live = feedEnabled && wsConnected;
   const up = (adr?.changePct ?? 0) >= 0;
 
-  // Vencimiento más cercano (los futuros vienen ordenados por vto): TNA del último operado.
+  // Vencimiento más cercano: TNA de bid / último / ask, spread y volumen.
   const nearest = futures[0] ?? null;
-  const tnaLast = nearest
-    ? tnaFromPrice(nearest.last, nearest.spotRef ?? spotRef, nearest.daysToMaturity)
-    : null;
+  const rest = futures.slice(1);
+  const sref = nearest ? nearest.spotRef ?? spotRef : spotRef;
+  const tBid = nearest ? tnaFromPrice(nearest.bid, sref, nearest.daysToMaturity) : null;
+  const tLast = nearest ? tnaFromPrice(nearest.last, sref, nearest.daysToMaturity) : null;
+  const tAsk = nearest ? tnaFromPrice(nearest.ask, sref, nearest.daysToMaturity) : null;
   const spread =
-    nearest && nearest.ask != null && nearest.bid != null
-      ? nearest.ask - nearest.bid
-      : null;
+    nearest && nearest.ask != null && nearest.bid != null ? nearest.ask - nearest.bid : null;
 
   return (
     <div className="w">
@@ -42,38 +42,63 @@ export function Widget() {
 
       {nearest && (
         <div className="near">
-          <div className="nrow">
-            <span className="lbl">TNA {nearest.label} · últ.</span>
-            <span className="val">{tnaLast != null ? fmtPct(tnaLast) : "—"}</span>
+          <div className="near-hdr">
+            <span>{nearest.label}</span>
+            <span className="days">
+              {nearest.daysToMaturity != null ? `${nearest.daysToMaturity}d` : ""}
+            </span>
           </div>
-          <div className="nrow">
-            <span className="lbl">Spread puntas</span>
-            <span className="val sp">{spread != null ? fmtArs(spread) : "—"}</span>
+          <div className="tnarow">
+            <div className="tcol">
+              <div className="tl">TNA bid</div>
+              <div className="tv bid">{tBid != null ? fmtPct(tBid) : "—"}</div>
+            </div>
+            <div className="tcol">
+              <div className="tl">TNA últ</div>
+              <div className="tv last">{tLast != null ? fmtPct(tLast) : "—"}</div>
+            </div>
+            <div className="tcol">
+              <div className="tl">TNA ask</div>
+              <div className="tv ask">{tAsk != null ? fmtPct(tAsk) : "—"}</div>
+            </div>
+          </div>
+          <div className="near-foot">
+            <span>
+              Spread{" "}
+              <b style={{ color: spreadColor(spread) }}>
+                {spread != null ? fmtPrice(spread, 2) : "—"}
+              </b>
+            </span>
+            <span>
+              Vol <b>{fmtInt(nearest.volume)}</b>
+            </span>
           </div>
         </div>
       )}
 
       <div className="futs">
-        <div className="frow fhead">
-          <span>Futuro</span>
-          <span>TNA bid</span>
-          <span>TNA ask</span>
-        </div>
         {futures.length === 0 ? (
           <div className="empty">{feedEnabled ? "esperando datos…" : "datos en pausa"}</div>
-        ) : (
-          futures.map((f) => {
-            const sref = f.spotRef ?? spotRef;
-            const tb = tnaFromPrice(f.bid, sref, f.daysToMaturity);
-            const ta = tnaFromPrice(f.ask, sref, f.daysToMaturity);
-            return (
-              <div className="frow" key={f.symbol}>
-                <span className="fl">{f.label}</span>
-                <span className="tb">{tb != null ? fmtPct(tb) : "—"}</span>
-                <span className="ta">{ta != null ? fmtPct(ta) : "—"}</span>
-              </div>
-            );
-          })
+        ) : rest.length === 0 ? null : (
+          <>
+            <div className="frow fhead">
+              <span>Futuro</span>
+              <span>TNA bid</span>
+              <span>TNA ask</span>
+            </div>
+            {rest.map((f) => {
+              const sr = f.spotRef ?? spotRef;
+              const b = tnaFromPrice(f.bid, sr, f.daysToMaturity);
+              const a = tnaFromPrice(f.ask, sr, f.daysToMaturity);
+              return (
+                <div className="frow" key={f.symbol}>
+                  <span className="fl">{f.label}</span>
+                  <span className="tb">{b != null ? fmtPct(b) : "—"}</span>
+                  <span className="ta">{a != null ? fmtPct(a) : "—"}</span>
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
     </div>

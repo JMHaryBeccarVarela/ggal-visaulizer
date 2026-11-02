@@ -37,12 +37,17 @@ const WIDGET_CSS = `
   .chg.up { color: #22c55e; } .chg.dn { color: #ef4444; }
   .near {
     background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
-    border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;
+    border-radius: 8px; padding: 7px 10px; display: flex; flex-direction: column; gap: 6px;
   }
-  .nrow { display: flex; align-items: baseline; justify-content: space-between; }
-  .nrow .lbl { color: #8b96a3; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  .nrow .val { color: #fbbf24; font-weight: 600; font-size: 14px; }
-  .nrow .val.sp { color: #e6edf3; }
+  .near-hdr { display: flex; justify-content: space-between; align-items: baseline; color: #e6edf3; font-weight: 600; font-size: 13px; }
+  .near-hdr .days { color: #8b96a3; font-weight: 400; font-size: 11px; }
+  .tnarow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .tcol { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .tl { color: #5a6571; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; }
+  .tv { font-weight: 600; font-size: 14px; }
+  .tv.bid { color: #22c55e; } .tv.last { color: #fbbf24; } .tv.ask { color: #ef4444; }
+  .near-foot { display: flex; justify-content: space-between; border-top: 1px solid rgba(245,158,11,.25); padding-top: 5px; font-size: 11px; color: #8b96a3; }
+  .near-foot b { color: #e6edf3; font-weight: 600; }
   .futs { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #1f2a36; padding-top: 8px; }
   .frow { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; font-size: 13px; align-items: baseline; }
   .fhead { color: #5a6571; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
@@ -72,7 +77,7 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 330, height: 270 });
+  const win: Window = await dpip.requestWindow({ width: 340, height: 285 });
   pipWin = win;
 
   const font = win.document.createElement("link");
