@@ -133,6 +133,31 @@ En Render, seteá `CORS_ORIGINS` = la URL de Netlify y redeploy.
 
 Abrís el sitio de Netlify y con **▶ Encender datos** prendés el stream en vivo.
 
+## Widget de escritorio (always-on-top)
+
+Una página web no puede quedar por encima de toda la pantalla fuera del
+navegador, así que el widget flotante "de verdad" es una mini app de escritorio
+con **Electron** que reusa la misma UI: una ventana **sin bordes, transparente y
+siempre-encima** que flota sobre cualquier app (incluso en pantalla completa).
+
+```bash
+npm install        # una vez, trae electron
+npm run widget     # abre el widget flotante
+```
+
+- Muestra el **ADR**, la **TNA del último** y el **spread de puntas** del vto más
+  cercano, y la **TNA bid/ask** de cada futuro — en tiempo real desde la API.
+- **Atajos globales** (funcionan en toda la PC):
+  `Alt+1` mostrar · `Alt+2` esconder · `Alt+Shift+Q` cerrar.
+- Se **arrastra** desde cualquier parte; la **✕** lo esconde (lo volvés con `Alt+1`).
+- Apunta por defecto a la API de Render; se cambia con
+  `GGAL_API=https://tu-api npm run widget`.
+- Requiere que el **feed esté encendido** (se prende desde el sitio).
+
+> El widget del navegador (botón ⧉ Widget, Document PiP) sigue disponible para
+> Chrome/Edge; el de escritorio (Electron) anda en cualquier lado y flota sobre
+> todo. Empaquetarlo como `.exe` instalable es un paso extra (electron-builder).
+
 ## Stack
 
 - Python 3.11+ · FastAPI · uvicorn · pyRofex · websocket-client · requests

@@ -12,9 +12,11 @@
     "build": "npm run build -w client",
     "typecheck": "npm run typecheck -w client",
     "install:server": "py -mpip install -r server/requirements.txt",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "widget": "electron electron/main.cjs"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "electron": "^31.0.0"
   }
 }

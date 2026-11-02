@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GGAL · widget</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { background: transparent; }
+      body {
+        font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+        overflow: hidden;
+      }
+      .card {
+        -webkit-app-region: drag; /* permite arrastrar la ventana en Electron */
+        height: 100vh;
+        background: #0a0e14;
+        color: #e6edf3;
+        border: 3px solid #ffffff;
+        border-radius: 22px;
+        padding: 14px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .hdr { display: flex; align-items: center; justify-content: space-between; }
+      .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .06em; font-size: 15px; }
+      .hdr-r { display: flex; align-items: center; gap: 8px; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: #5a6571; }
+      .dot.on { background: #22c55e; box-shadow: 0 0 7px #22c55e; }
+      .x {
+        -webkit-app-region: no-drag;
+        cursor: pointer; color: #5a6571; font-size: 14px; line-height: 1;
+        padding: 2px 4px; border-radius: 4px;
+      }
+      .x:hover { color: #e6edf3; background: rgba(255,255,255,.08); }
+      .adr { display: flex; align-items: baseline; gap: 8px; }
+      .adr .lbl { color: #8b96a3; font-size: 11px; }
+      .adr .px { font-size: 26px; font-weight: 600; }
+      .adr .chg { margin-left: auto; font-size: 13px; }
+      .chg.up { color: #22c55e; } .chg.dn { color: #ef4444; }
+      .near {
+        background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
+        border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;
+      }
+      .nrow { display: flex; align-items: baseline; justify-content: space-between; }
+      .nrow .lbl { color: #8b96a3; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+      .nrow .val { color: #fbbf24; font-weight: 600; font-size: 14px; }
+      .nrow .val.sp { color: #e6edf3; }
+      .futs { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #1f2a36; padding-top: 8px; }
+      .frow { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; font-size: 13px; align-items: baseline; }
+      .fhead { color: #5a6571; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+      .fl { color: #e6edf3; }
+      .tb { color: #22c55e; text-align: right; min-width: 56px; }
+      .ta { color: #ef4444; text-align: right; min-width: 56px; }
+      .empty { color: #5a6571; font-size: 12px; padding: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="hdr">
+        <span class="ttl">GGAL</span>
+        <div class="hdr-r">
+          <span class="dot" id="dot"></span>
+          <span class="x" id="close" title="Esconder (Alt+2)">✕</span>
+        </div>
+      </div>
+
+      <div class="adr">
+        <span class="lbl">ADR</span>
+        <span class="px" id="adr-px">—</span>
+        <span class="chg" id="adr-chg">—</span>
+      </div>
+
+      <div class="near">
+        <div class="nrow">
+          <span class="lbl" id="near-lbl">TNA · últ.</span>
+          <span class="val" id="near-tna">—</span>
+        </div>
+        <div class="nrow">
+          <span class="lbl">Spread puntas</span>
+          <span class="val sp" id="near-sp">—</span>
+        </div>
+      </div>
+
+      <div class="futs" id="futs">
+        <div class="frow fhead"><span>Futuro</span><span>TNA bid</span><span>TNA ask</span></div>
+        <div class="empty" id="empty">conectando…</div>
+      </div>
+    </div>
+
+    <script>
+      // API: por defecto Render; se puede sobrescribir con ?api=https://...
+      const API = (new URLSearchParams(location.search).get("api") || "https://ggal-api.onrender.com").replace(/\/+$/, "");
+      const WS_URL = (() => {
+        try {
+          const u = new URL(API);
+          return (u.protocol === "https:" ? "wss:" : "ws:") + "//" + u.host + "/ws";
+        } catch { return "wss://ggal-api.onrender.com/ws"; }
+      })();
+
+      const nf = (n, loc, d = 2) =>
+        n == null || !isFinite(n) ? "—" : n.toLocaleString(loc, { minimumFractionDigits: d, maximumFractionDigits: d });
+      const fmtUsd = (n) => (n == null || !isFinite(n) ? "—" : "US$ " + nf(n, "en-US"));
+      const fmtArs = (n) => (n == null || !isFinite(n) ? "—" : "$ " + nf(n, "es-AR"));
+      const fmtPct = (n) => (n == null || !isFinite(n) ? "—" : nf(n * 100, "es-AR") + "%");
+      const fmtSigned = (n) => (n == null || !isFinite(n) ? "—" : (n > 0 ? "+" : "") + nf(n * 100, "es-AR") + "%");
+
+      const tna = (price, spot, days) =>
+        price > 0 && spot > 0 && days > 0 ? (price / spot - 1) * (365 / days) : null;
+
+      let snapshot = null, status = null;
+
+      function render() {
+        const adr = (snapshot && snapshot.adr) || null;
+        const spotRef = (snapshot && snapshot.spot && snapshot.spot.ref) || null;
+        const futures = (snapshot && snapshot.futures) || [];
+        const feedOn = !!(status && status.feedEnabled);
+
+        document.getElementById("dot").className = "dot" + (feedOn ? " on" : "");
+
+        document.getElementById("adr-px").textContent = fmtUsd(adr && adr.last);
+        const chg = document.getElementById("adr-chg");
+        const c = adr && adr.changePct;
+        chg.textContent = c == null ? "—" : fmtSigned(c);
+        chg.className = "chg " + (c != null && c < 0 ? "dn" : "up");
+
+        const nearest = futures[0] || null;
+        if (nearest) {
+          const sref = nearest.spotRef || spotRef;
+          document.getElementById("near-lbl").textContent = "TNA " + nearest.label + " · últ.";
+          document.getElementById("near-tna").textContent = fmtPct(tna(nearest.last, sref, nearest.daysToMaturity));
+          const sp = nearest.ask != null && nearest.bid != null ? nearest.ask - nearest.bid : null;
+          document.getElementById("near-sp").textContent = sp == null ? "—" : fmtArs(sp);
+        }
+
+        const futs = document.getElementById("futs");
+        futs.querySelectorAll(".frow:not(.fhead), .empty").forEach((el) => el.remove());
+        if (!futures.length) {
+          const e = document.createElement("div");
+          e.className = "empty";
+          e.textContent = feedOn ? "esperando datos…" : "datos en pausa (encendé en el sitio)";
+          futs.appendChild(e);
+        } else {
+          for (const f of futures) {
+            const sref = f.spotRef || spotRef;
+            const row = document.createElement("div");
+            row.className = "frow";
+            row.innerHTML =
+              '<span class="fl">' + f.label + "</span>" +
+              '<span class="tb">' + fmtPct(tna(f.bid, sref, f.daysToMaturity)) + "</span>" +
+              '<span class="ta">' + fmtPct(tna(f.ask, sref, f.daysToMaturity)) + "</span>";
+            futs.appendChild(row);
+          }
+        }
+      }
+
+      let ws, reconnect = 1000, pingTimer;
+      function connect() {
+        ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+          reconnect = 1000;
+          clearInterval(pingTimer);
+          pingTimer = setInterval(() => ws.readyState === 1 && ws.send(JSON.stringify({ type: "ping" })), 20000);
+        };
+        ws.onmessage = (ev) => {
+          let m; try { m = JSON.parse(ev.data); } catch { return; }
+          if (m.type === "snapshot") { snapshot = m.data; render(); }
+          else if (m.type === "status") { status = m.data; render(); }
+        };
+        ws.onclose = () => { clearInterval(pingTimer); setTimeout(connect, reconnect); reconnect = Math.min(reconnect * 2, 15000); };
+        ws.onerror = () => { try { ws.close(); } catch {} };
+      }
+      connect();
+
+      document.getElementById("close").addEventListener("click", () => window.close());
+    </script>
+  </body>
+</html>
