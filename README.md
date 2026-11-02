@@ -156,7 +156,23 @@ npm run widget     # abre el widget flotante
 
 > El widget del navegador (botón ⧉ Widget, Document PiP) sigue disponible para
 > Chrome/Edge; el de escritorio (Electron) anda en cualquier lado y flota sobre
-> todo. Empaquetarlo como `.exe` instalable es un paso extra (electron-builder).
+> todo.
+
+### Empaquetar como .exe
+
+```bash
+npm run dist:widget
+```
+
+Genera la app en `release/win-unpacked/` → ejecutable **`GGAL Widget.exe`**
+(doble clic, sin terminal ni `npm`). Podés copiar esa carpeta a donde quieras
+o hacerle un acceso directo al `.exe`.
+
+> Para generar **un único `.exe` portable** (en vez de la carpeta), Windows
+> necesita el **Modo de desarrollador** activado (Configuración → Privacidad y
+> seguridad → Para desarrolladores), porque el empaquetador crea symlinks al
+> firmar. Con eso, `npm run dist:widget` produce `release/GGAL-Widget.exe` de un
+> solo archivo.
 
 ## Stack
 
