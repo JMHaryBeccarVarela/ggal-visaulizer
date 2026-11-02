@@ -15,8 +15,8 @@
 const { app, BrowserWindow, globalShortcut, screen } = require("electron");
 const path = require("path");
 
-const WIDTH = 330;
-const HEIGHT = 270;
+const WIDTH = 460;
+const HEIGHT = 440;
 const API = process.env.GGAL_API || "https://ggal-api.onrender.com";
 
 let win = null;
@@ -27,8 +27,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: WIDTH,
     height: HEIGHT,
-    minWidth: 220,
-    minHeight: 170,
+    minWidth: 440,
+    minHeight: 360,
     x: sw - WIDTH - 20,
     y: 20,
     frame: false,

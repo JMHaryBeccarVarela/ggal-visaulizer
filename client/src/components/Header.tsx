@@ -130,6 +130,14 @@ export function Header() {
           <div className="flex items-center gap-2">
             <FeedButton />
             <WidgetButton />
+            <a
+              href="/GGAL-Widget.exe"
+              download
+              className="btn"
+              title="Descargar el widget de escritorio (.exe · Windows)"
+            >
+              ⬇ Widget .exe
+            </a>
           </div>
         </div>
 

@@ -9,7 +9,7 @@
       rel="stylesheet"
     />
     <style>
-      :root { color-scheme: dark; font-size: 15px; }
+      :root { color-scheme: dark; font-size: 20px; }
       * { box-sizing: border-box; margin: 0; }
       html, body { background: transparent; height: 100%; }
       body {
@@ -19,72 +19,75 @@
         overflow: hidden;
         height: 100vh;
       }
-      /* La card ocupa toda la ventana y se arrastra. El contenido escala con
-         el tamaño porque todo está en rem y el font-size raíz se ajusta por JS. */
       .card {
         -webkit-app-region: drag;
         height: 100%;
         background: #0a0e14;
         color: #e6edf3;
-        border: 0.2rem solid #ffffff;
-        border-radius: 1.4rem;
-        padding: 0.9rem 1.1rem;
+        border: 0.15rem solid #ffffff;
+        border-radius: 1.2rem;
+        padding: 0.8rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 0.55rem;
+        gap: 0.5rem;
         overflow: hidden;
       }
+      /* flash verde de TODO el widget cuando cambia el precio del ADR */
+      @keyframes flashGreen { 0% { background: #114d29; } 100% { background: #0a0e14; } }
+      .card.flash { animation: flashGreen .7s ease-out; }
+
       .hdr { display: flex; align-items: center; justify-content: space-between; }
-      .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .05em; font-size: 1rem; }
+      .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .05em; font-size: .9rem; }
       .hdr-r { display: flex; align-items: center; gap: .5rem; }
-      .dot { width: .55rem; height: .55rem; border-radius: 50%; background: #5a6571; }
+      .dot { width: .5rem; height: .5rem; border-radius: 50%; background: #5a6571; }
       .dot.on { background: #22c55e; box-shadow: 0 0 .4rem #22c55e; }
       .x {
         -webkit-app-region: no-drag; cursor: pointer; color: #5a6571;
-        font-size: .9rem; line-height: 1; padding: 0 .15rem; border-radius: .2rem;
+        font-size: .85rem; line-height: 1; padding: 0 .15rem; border-radius: .2rem;
       }
       .x:hover { color: #e6edf3; background: rgba(255,255,255,.08); }
       .adr { display: flex; align-items: baseline; gap: .5rem; }
-      .adr .lbl { color: #8b96a3; font-size: .72rem; }
-      .adr .px { font-size: 1.7rem; font-weight: 600; }
-      .adr .chg { margin-left: auto; font-size: .85rem; }
+      .adr .lbl { color: #8b96a3; font-size: .62rem; }
+      .adr .px { font-size: 1.45rem; font-weight: 600; }
+      .adr .chg { margin-left: auto; font-size: .75rem; }
       .chg.up { color: #22c55e; } .chg.dn { color: #ef4444; }
 
       .near {
         background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
-        border-radius: .55rem; padding: .5rem .6rem;
-        display: flex; flex-direction: column; gap: .4rem;
+        border-radius: .5rem; padding: .45rem .55rem;
+        display: flex; flex-direction: column; gap: .35rem;
       }
       .near-hdr {
         display: flex; justify-content: space-between; align-items: baseline;
-        color: #e6edf3; font-weight: 600; font-size: .85rem;
+        color: #e6edf3; font-weight: 600; font-size: .75rem;
       }
-      .near-hdr .days { color: #8b96a3; font-weight: 400; font-size: .7rem; }
-      .tnarow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem; }
-      .tcol { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
-      .tl { color: #5a6571; font-size: .62rem; text-transform: uppercase; letter-spacing: .03em; }
-      .tv { font-weight: 600; font-size: .98rem; }
+      .near-hdr .days { color: #8b96a3; font-weight: 400; font-size: .6rem; }
+      .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .3rem; }
+      .tcol { display: flex; flex-direction: column; align-items: center; gap: .04rem; }
+      .tl { color: #5a6571; font-size: .52rem; text-transform: uppercase; letter-spacing: .03em; }
+      .tv { font-weight: 600; font-size: .82rem; }
       .tv.bid { color: #22c55e; }
       .tv.last { color: #fbbf24; }
       .tv.ask { color: #ef4444; }
+      .pv { text-align: center; color: #8b96a3; font-size: .62rem; }
       .near-foot {
         display: flex; justify-content: space-between;
-        border-top: 1px solid rgba(245,158,11,.25); padding-top: .35rem;
-        font-size: .78rem; color: #8b96a3;
+        border-top: 1px solid rgba(245,158,11,.25); padding-top: .3rem;
+        font-size: .68rem; color: #8b96a3;
       }
       .near-foot b { color: #e6edf3; font-weight: 600; }
 
-      .futs { display: flex; flex-direction: column; gap: .25rem; }
-      .frow { display: grid; grid-template-columns: 1fr auto auto; gap: .9rem; font-size: .82rem; align-items: baseline; }
-      .fhead { color: #5a6571; font-size: .6rem; text-transform: uppercase; letter-spacing: .04em; }
+      .futs { display: flex; flex-direction: column; gap: .2rem; }
+      .frow { display: grid; grid-template-columns: 1fr auto auto; gap: .8rem; font-size: .72rem; align-items: baseline; }
+      .fhead { color: #5a6571; font-size: .52rem; text-transform: uppercase; letter-spacing: .04em; }
       .fl { color: #e6edf3; }
-      .tb { color: #22c55e; text-align: right; min-width: 3.4rem; }
-      .ta { color: #ef4444; text-align: right; min-width: 3.4rem; }
-      .empty { color: #5a6571; font-size: .78rem; padding: .2rem 0; }
+      .tb { color: #22c55e; text-align: right; min-width: 3.2rem; }
+      .ta { color: #ef4444; text-align: right; min-width: 3.2rem; }
+      .empty { color: #5a6571; font-size: .68rem; padding: .2rem 0; }
     </style>
   </head>
   <body>
-    <div class="card">
+    <div class="card" id="card">
       <div class="hdr">
         <span class="ttl">GGAL</span>
         <div class="hdr-r">
@@ -101,10 +104,15 @@
 
       <div class="near" id="near" style="display:none">
         <div class="near-hdr"><span id="near-sym">—</span><span class="days" id="near-days"></span></div>
-        <div class="tnarow">
+        <div class="g3">
           <div class="tcol"><div class="tl">TNA bid</div><div class="tv bid" id="t-bid">—</div></div>
           <div class="tcol"><div class="tl">TNA últ</div><div class="tv last" id="t-last">—</div></div>
           <div class="tcol"><div class="tl">TNA ask</div><div class="tv ask" id="t-ask">—</div></div>
+        </div>
+        <div class="g3">
+          <div class="pv" id="p-bid">—</div>
+          <div class="pv" id="p-last">—</div>
+          <div class="pv" id="p-ask">—</div>
         </div>
         <div class="near-foot">
           <span>Spread <b class="sp" id="near-sp">—</b></span>
@@ -122,14 +130,13 @@
         catch { return "wss://ggal-api.onrender.com/ws"; }
       })();
 
-      // --- El widget es autosuficiente: enciende el feed solo al abrir ---
+      // El widget enciende el feed solo al abrir (autosuficiente, sin la web).
       fetch(API + "/api/feed/start", { method: "POST" }).catch(() => {});
 
-      // --- Escalado responsive: el font-size raíz se adapta al tamaño ---
+      // Escalado responsive: el font-size raíz se adapta al ancho, nunca < 20px.
       function fit() {
         const w = document.documentElement.clientWidth;
-        const h = document.documentElement.clientHeight;
-        const s = Math.max(9, Math.min(30, Math.min(w / 22, h / 17.5)));
+        const s = Math.max(20, Math.min(44, w / 22));
         document.documentElement.style.fontSize = s + "px";
       }
       new ResizeObserver(fit).observe(document.documentElement);
@@ -142,9 +149,8 @@
       const fmtPct = (n) => (n == null || !isFinite(n) ? "—" : nf(n * 100, "es-AR") + "%");
       const fmtSigned = (n) => (n == null || !isFinite(n) ? "—" : (n > 0 ? "+" : "") + nf(n * 100, "es-AR") + "%");
       const fmtInt = (n) => (n == null || !isFinite(n) ? "—" : n.toLocaleString("es-AR", { maximumFractionDigits: 0 }));
+      const fmtP = (n) => (n == null || !isFinite(n) ? "—" : n.toLocaleString("es-AR", { maximumFractionDigits: 2 }));
       const tna = (price, spot, days) => (price > 0 && spot > 0 && days > 0 ? (price / spot - 1) * (365 / days) : null);
-
-      // color del spread: <=10 verde, >10 y <=15 amarillo, >15 rojo
       function spreadColor(s) {
         if (s == null || !isFinite(s)) return "#5a6571";
         if (s <= 10) return "#22c55e";
@@ -152,7 +158,14 @@
         return "#ef4444";
       }
 
-      let snapshot = null, status = null;
+      let snapshot = null, status = null, prevAdr = null;
+
+      function flashCard() {
+        const c = document.getElementById("card");
+        c.classList.remove("flash");
+        void c.offsetWidth; // reinicia la animación
+        c.classList.add("flash");
+      }
 
       function render() {
         const adr = (snapshot && snapshot.adr) || null;
@@ -160,8 +173,13 @@
         const futures = (snapshot && snapshot.futures) || [];
         const feedOn = !!(status && status.feedEnabled);
 
+        // flash verde de todo el widget cuando varía el precio del ADR
+        const last = adr && adr.last;
+        if (last != null && isFinite(last) && prevAdr != null && last !== prevAdr) flashCard();
+        if (last != null && isFinite(last)) prevAdr = last;
+
         document.getElementById("dot").className = "dot" + (feedOn ? " on" : "");
-        document.getElementById("adr-px").textContent = fmtUsd(adr && adr.last);
+        document.getElementById("adr-px").textContent = fmtUsd(last);
         const chg = document.getElementById("adr-chg");
         const c = adr && adr.changePct;
         chg.textContent = c == null ? "—" : fmtSigned(c);
@@ -178,6 +196,9 @@
           document.getElementById("t-bid").textContent = fmtPct(tna(nearest.bid, sref, nearest.daysToMaturity));
           document.getElementById("t-last").textContent = fmtPct(tna(nearest.last, sref, nearest.daysToMaturity));
           document.getElementById("t-ask").textContent = fmtPct(tna(nearest.ask, sref, nearest.daysToMaturity));
+          document.getElementById("p-bid").textContent = fmtP(nearest.bid);
+          document.getElementById("p-last").textContent = fmtP(nearest.last);
+          document.getElementById("p-ask").textContent = fmtP(nearest.ask);
           const sp = nearest.ask != null && nearest.bid != null ? nearest.ask - nearest.bid : null;
           const spEl = document.getElementById("near-sp");
           spEl.textContent = sp == null ? "—" : nf(sp, "es-AR");
@@ -187,7 +208,6 @@
           near.style.display = "none";
         }
 
-        // Tabla de los demás vencimientos (el más cercano ya va arriba)
         const futs = document.getElementById("futs");
         const rest = futures.slice(1);
         if (!futures.length) {

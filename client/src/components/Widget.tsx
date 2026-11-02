@@ -1,6 +1,7 @@
+import { useEffect, useRef } from "react";
 import { useMarket } from "../store/market";
 import { tnaFromPrice, spreadColor } from "../lib/rates";
-import { fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtInt } from "../lib/format";
+import { fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtNum, fmtInt } from "../lib/format";
 
 // Contenido del widget flotante (se monta dentro de la ventana Picture-in-Picture).
 // Usa el mismo store global, así que se actualiza en tiempo real con el feed.
@@ -15,7 +16,24 @@ export function Widget() {
   const live = feedEnabled && wsConnected;
   const up = (adr?.changePct ?? 0) >= 0;
 
-  // Vencimiento más cercano: TNA de bid / último / ask, spread y volumen.
+  // Flash verde de TODO el widget cuando varía el precio del ADR.
+  const adrLast = adr?.last ?? null;
+  const prev = useRef<number | null>(null);
+  useEffect(() => {
+    if (adrLast == null || !isFinite(adrLast)) return;
+    if (prev.current != null && adrLast !== prev.current) {
+      const b = document.body;
+      b.classList.remove("flash");
+      void b.offsetWidth; // reinicia la animación
+      b.classList.add("flash");
+      const t = window.setTimeout(() => b.classList.remove("flash"), 700);
+      prev.current = adrLast;
+      return () => window.clearTimeout(t);
+    }
+    prev.current = adrLast;
+  }, [adrLast]);
+
+  // Vencimiento más cercano: TNA de bid/último/ask, precios, spread y volumen.
   const nearest = futures[0] ?? null;
   const rest = futures.slice(1);
   const sref = nearest ? nearest.spotRef ?? spotRef : spotRef;
@@ -48,7 +66,7 @@ export function Widget() {
               {nearest.daysToMaturity != null ? `${nearest.daysToMaturity}d` : ""}
             </span>
           </div>
-          <div className="tnarow">
+          <div className="g3">
             <div className="tcol">
               <div className="tl">TNA bid</div>
               <div className="tv bid">{tBid != null ? fmtPct(tBid) : "—"}</div>
@@ -61,6 +79,11 @@ export function Widget() {
               <div className="tl">TNA ask</div>
               <div className="tv ask">{tAsk != null ? fmtPct(tAsk) : "—"}</div>
             </div>
+          </div>
+          <div className="g3">
+            <div className="pv">{fmtNum(nearest.bid)}</div>
+            <div className="pv">{fmtNum(nearest.last)}</div>
+            <div className="pv">{fmtNum(nearest.ask)}</div>
           </div>
           <div className="near-foot">
             <span>

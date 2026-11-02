@@ -25,6 +25,8 @@ const WIDGET_CSS = `
     user-select: none;
     overflow: hidden;
   }
+  @keyframes flashGreen { 0% { background: #114d29; } 100% { background: #0a0e14; } }
+  body.flash { animation: flashGreen .7s ease-out; }
   .w { display: flex; flex-direction: column; gap: 10px; }
   .hdr { display: flex; align-items: center; justify-content: space-between; }
   .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .06em; font-size: 15px; }
@@ -41,7 +43,8 @@ const WIDGET_CSS = `
   }
   .near-hdr { display: flex; justify-content: space-between; align-items: baseline; color: #e6edf3; font-weight: 600; font-size: 13px; }
   .near-hdr .days { color: #8b96a3; font-weight: 400; font-size: 11px; }
-  .tnarow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .pv { text-align: center; color: #8b96a3; font-size: 11px; }
   .tcol { display: flex; flex-direction: column; align-items: center; gap: 1px; }
   .tl { color: #5a6571; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; }
   .tv { font-weight: 600; font-size: 14px; }
@@ -77,7 +80,7 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 340, height: 285 });
+  const win: Window = await dpip.requestWindow({ width: 340, height: 305 });
   pipWin = win;
 
   const font = win.document.createElement("link");

@@ -37,6 +37,14 @@ export function fmtInt(n: number | null | undefined): string {
   return nfInt.format(n);
 }
 
+const nfNum = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
+
+/** Número compacto (hasta 2 decimales, sin forzarlos). Ej.: 5430 → "5.430". */
+export function fmtNum(n: number | null | undefined): string {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  return nfNum.format(n);
+}
+
 /** Recibe una fracción (0.0345) y la muestra como porcentaje ("3,45%"). */
 export function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
