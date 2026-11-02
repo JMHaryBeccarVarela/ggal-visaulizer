@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMarket } from "../store/market";
 import { setFeed } from "../lib/api";
+import { pipSupported, isWidgetOpen, openWidget, closeWidget } from "../lib/pip";
 import { fmtTime } from "../lib/format";
 import type { ConnState } from "../types";
 
@@ -74,6 +75,40 @@ function FeedButton() {
   );
 }
 
+function WidgetButton() {
+  const [open, setOpen] = useState(false);
+
+  async function toggle() {
+    if (isWidgetOpen()) {
+      closeWidget();
+      setOpen(false);
+      return;
+    }
+    if (!pipSupported()) {
+      alert(
+        "El widget flotante necesita Chrome o Edge (usa la Document Picture-in-Picture API).",
+      );
+      return;
+    }
+    try {
+      await openWidget(() => setOpen(false));
+      setOpen(true);
+    } catch {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      className="btn"
+      title="Widget flotante siempre-encima con ADR y TNA de los futuros (Chrome/Edge)"
+    >
+      {open ? "✕ Widget" : "⧉ Widget"}
+    </button>
+  );
+}
+
 export function Header() {
   const { status, wsConnected, lastUpdate } = useMarket();
 
@@ -94,7 +129,10 @@ export function Header() {
               ADR (NYSE) · Acción (BYMA) · Futuros (Rofex) · TNA / TEA implícita
             </p>
           </div>
-          <FeedButton />
+          <div className="flex items-center gap-2">
+            <FeedButton />
+            <WidgetButton />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
