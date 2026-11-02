@@ -1,6 +1,6 @@
 import { useMarket } from "../store/market";
 import { tnaFromPrice } from "../lib/rates";
-import { fmtUsd, fmtSignedPct, fmtPct } from "../lib/format";
+import { fmtUsd, fmtArs, fmtSignedPct, fmtPct } from "../lib/format";
 
 // Contenido del widget flotante (se monta dentro de la ventana Picture-in-Picture).
 // Usa el mismo store global, así que se actualiza en tiempo real con el feed.
@@ -20,6 +20,10 @@ export function Widget() {
   const tnaLast = nearest
     ? tnaFromPrice(nearest.last, nearest.spotRef ?? spotRef, nearest.daysToMaturity)
     : null;
+  const spread =
+    nearest && nearest.ask != null && nearest.bid != null
+      ? nearest.ask - nearest.bid
+      : null;
 
   return (
     <div className="w">
@@ -37,9 +41,15 @@ export function Widget() {
       </div>
 
       {nearest && (
-        <div className="last">
-          <span className="lbl">TNA {nearest.label} · últ.</span>
-          <span className="val">{tnaLast != null ? fmtPct(tnaLast) : "—"}</span>
+        <div className="near">
+          <div className="nrow">
+            <span className="lbl">TNA {nearest.label} · últ.</span>
+            <span className="val">{tnaLast != null ? fmtPct(tnaLast) : "—"}</span>
+          </div>
+          <div className="nrow">
+            <span className="lbl">Spread puntas</span>
+            <span className="val sp">{spread != null ? fmtArs(spread) : "—"}</span>
+          </div>
         </div>
       )}
 
