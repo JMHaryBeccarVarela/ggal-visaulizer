@@ -20,17 +20,16 @@ export default function App() {
     connectWs();
   }, []);
 
-  // Shortcuts del widget: Ctrl+B muestra, Ctrl+Q esconde.
-  // (Ctrl+W no se puede usar: el navegador lo reserva para "cerrar pestaña".)
+  // Shortcuts del widget: Alt+1 muestra, Alt+2 esconde.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
-      if (e.code === "KeyQ") {
-        e.preventDefault();
-        closeWidget();
-      } else if (e.code === "KeyB") {
+      if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
+      if (e.code === "Digit1" || e.code === "Numpad1") {
         e.preventDefault();
         if (pipSupported() && !isWidgetOpen()) openWidget().catch(() => {});
+      } else if (e.code === "Digit2" || e.code === "Numpad2") {
+        e.preventDefault();
+        closeWidget();
       }
     }
     window.addEventListener("keydown", onKey);

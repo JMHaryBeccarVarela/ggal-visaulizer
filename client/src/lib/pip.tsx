@@ -94,9 +94,12 @@ export async function openWidget(): Promise<void> {
   pipRoot = createRoot(mount);
   pipRoot.render(<Widget />);
 
-  // Ctrl+Q esconde el widget también cuando la ventana flotante tiene foco.
+  // Alt+2 esconde el widget también cuando la ventana flotante tiene foco.
   win.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.ctrlKey && e.code === "KeyQ") {
+    if (
+      e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+      (e.code === "Digit2" || e.code === "Numpad2")
+    ) {
       e.preventDefault();
       closeWidget();
     }

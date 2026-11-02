@@ -100,7 +100,7 @@ function WidgetButton() {
     <button
       onClick={toggle}
       className="btn"
-      title="Widget flotante siempre-encima (Ctrl+B mostrar · Ctrl+Q esconder) — Chrome/Edge"
+      title="Widget flotante siempre-encima (Alt+1 mostrar · Alt+2 esconder) — Chrome/Edge"
     >
       {open ? "✕ Widget" : "⧉ Widget"}
     </button>
