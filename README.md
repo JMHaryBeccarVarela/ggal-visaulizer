@@ -7,6 +7,8 @@ Landing en tiempo real para **Grupo Financiero Galicia (GGAL)**:
 - **Futuros GGAL** (Matba Rofex, ARS) — los **dos vencimientos** más cercanos.
 - **TNA y TEA implícitas** de cada futuro contra la acción GGAL (24hs).
 - **Dólar implícito (CCL)** derivado del ADR vs BYMA.
+- **Botón de encendido/apagado** de la traída de datos en tiempo real: el feed
+  arranca apagado y conectás/cortás Primary + Alpaca desde la UI.
 
 > **Solo market data / terminal informativa.** No envía órdenes, no es un
 > broker, no es DMA.
@@ -104,6 +106,32 @@ El dólar implícito (CCL) se calcula como `precio_BYMA · ratio_ADR / ADR_USD`.
 El server mantiene los websockets conectados de forma permanente: con el
 mercado cerrado se ve el último estado (último operado, cierre, settlement).
 Los badges del header indican si cada mercado está abierto.
+
+## Deploy (Netlify + Render)
+
+Front estático en **Netlify** y API/WS en **Render** (sin Docker, runtime
+nativo). El repo trae `netlify.toml` y `render.yaml` ya configurados.
+
+> **Requisito**: el repo tiene que estar en **GitHub** (Render y Netlify lo clonan).
+
+### 1 · API en Render
+1. Render → **New + → Blueprint** → conectá este repo (lee `render.yaml`).
+2. Cargá las variables *Secret* (las `sync:false`): `PRIMARY_USER`,
+   `PRIMARY_PASS`, `PRIMARY_ACCOUNT`, `ALPACA_KEY`, `ALPACA_SECRET`.
+3. Deploy. Anotá la URL, ej. `https://ggal-api.onrender.com`.
+
+> Render free se **duerme** tras ~15 min sin tráfico y tarda unos segundos en
+> despertar; al reiniciar, el feed queda apagado (lo prendés de nuevo con el botón).
+
+### 2 · Front en Netlify
+1. Netlify → **Add new site → Import from Git** → este repo (lee `netlify.toml`).
+2. Site settings → **Environment variables** → `VITE_API_BASE` = la URL de Render.
+3. Deploy. Anotá la URL, ej. `https://ggal.netlify.app`.
+
+### 3 · Enganchar CORS
+En Render, seteá `CORS_ORIGINS` = la URL de Netlify y redeploy.
+
+Abrís el sitio de Netlify y con **▶ Encender datos** prendés el stream en vivo.
 
 ## Stack
 

@@ -1,0 +1,39 @@
+# Render Blueprint — API (FastAPI + pyRofex + Alpaca)
+# Deploy: New + → Blueprint → conectá este repo. Render lee este archivo.
+# Las variables marcadas sync:false se cargan a mano en el panel (Secrets).
+services:
+  - type: web
+    name: ggal-api
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      # --- Primary (obligatorio) ---
+      - key: PRIMARY_USER
+        sync: false
+      - key: PRIMARY_PASS
+        sync: false
+      - key: PRIMARY_ACCOUNT
+        sync: false
+      # --- Alpaca (ADR) ---
+      - key: ALPACA_KEY
+        sync: false
+      - key: ALPACA_SECRET
+        sync: false
+      - key: ALPACA_FEED
+        value: iex
+      # --- Ajustes GGAL ---
+      - key: GGAL_SPOT_SETTLEMENT
+        value: "24hs"
+      - key: GGAL_MAX_FUTURES
+        value: "2"
+      # --- CORS: poné acá la URL de tu sitio en Netlify ---
+      #     ej. https://ggal.netlify.app  (o "*" para permitir todo)
+      - key: CORS_ORIGINS
+        sync: false

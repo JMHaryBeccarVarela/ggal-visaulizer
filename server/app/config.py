@@ -60,6 +60,7 @@ class Config:
     host: str
     port: int
     log_level: str
+    cors_origins: str         # "*" o lista separada por comas (orígenes permitidos)
 
     @property
     def alpaca_enabled(self) -> bool:
@@ -84,4 +85,5 @@ config = Config(
     host=_env("HOST", "0.0.0.0"),
     port=int(_env("PORT", "8080")),
     log_level=_env("LOG_LEVEL", "info"),
+    cors_origins=_env("CORS_ORIGINS", "*"),
 )

@@ -1,4 +1,5 @@
 import { useMarket } from "../store/market";
+import { wsUrl } from "./config";
 import type { ServerMessage } from "../types";
 
 let socket: WebSocket | null = null;
@@ -6,11 +7,6 @@ let reconnectDelay = 1000;
 const MAX_DELAY = 15_000;
 let reconnectTimer: number | null = null;
 let pingTimer: number | null = null;
-
-function wsUrl(): string {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${location.host}/ws`;
-}
 
 export function connectWs(): void {
   if (socket && socket.readyState !== WebSocket.CLOSED) return;

@@ -94,6 +94,7 @@ export interface UsMarketStatus {
 }
 
 export interface StatusPayload {
+  feedEnabled: boolean;
   primaryState: ConnState;
   alpacaState: ConnState;
   market: MarketStatus;

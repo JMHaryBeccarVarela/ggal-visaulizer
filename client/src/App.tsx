@@ -19,7 +19,8 @@ export default function App() {
     connectWs();
   }, []);
 
-  const { snapshot } = useMarket();
+  const { snapshot, status } = useMarket();
+  const feedEnabled = status?.feedEnabled ?? false;
   const adr = snapshot?.adr ?? null;
   const spot = snapshot?.spot;
   const futures = snapshot?.futures ?? [];
@@ -29,6 +30,14 @@ export default function App() {
     <div className="min-h-screen">
       <Header />
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-6">
+        {!feedEnabled && (
+          <div className="panel border-accent/40 bg-accent/5 px-5 py-3 text-sm text-text-muted">
+            ⏸ <span className="font-medium text-text">Datos en pausa.</span> Encendé la
+            traída en tiempo real con el botón{" "}
+            <span className="text-accent">▶ Encender datos</span> del header.
+          </div>
+        )}
+
         {/* Dólar implícito (CCL) */}
         <div className="panel flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3">
           <div className="flex flex-col">

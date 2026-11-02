@@ -49,11 +49,15 @@ class AlpacaClient:
     # ---------- arranque / parada ----------
     def start(self) -> None:
         if not config.alpaca_enabled:
+            self._state = "disabled"
             log.warning(
                 "Alpaca deshabilitado (faltan ALPACA_KEY / ALPACA_SECRET). "
                 "El ADR de GGAL no se mostrará."
             )
             return
+        if self._thread and self._thread.is_alive():
+            return  # ya corriendo
+        self._stop = False
         self._state = "disconnected"
         self._seed_rest()
         self._thread = threading.Thread(target=self._run, name="alpaca-ws", daemon=True)
@@ -66,6 +70,8 @@ class AlpacaClient:
                 self._ws.close()
         except Exception:  # noqa: BLE001
             pass
+        if config.alpaca_enabled:
+            self._state = "idle"
 
     # ---------- seed REST ----------
     def _seed_rest(self) -> None:

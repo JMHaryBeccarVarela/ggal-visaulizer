@@ -1,0 +1,18 @@
+# Netlify — Front (Vite build estático)
+# Deploy: Add new site → Import from Git → elegí este repo.
+# Netlify lee este archivo. Falta setear una sola variable en el panel:
+#   VITE_API_BASE = https://<tu-app>.onrender.com   (la URL de Render)
+
+[build]
+  base = "client"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA de una sola página: cualquier ruta sirve index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -1,10 +1,15 @@
 """
 Server FastAPI: bridge entre Primary (pyRofex) + Alpaca y el cliente React.
 
-  REST:  GET /api/health
-         GET /api/snapshot      (snapshot computado: ADR, spot, futuros, TNA/TEA, CCL)
-         GET /api/instruments   (debug: instrumentos GGAL descubiertos)
-  WS:    /ws                    (broadcast de snapshot computado + status)
+  REST:  GET  /api/health
+         GET  /api/snapshot      (snapshot computado: ADR, spot, futuros, TNA/TEA, CCL)
+         GET  /api/instruments   (debug: instrumentos GGAL descubiertos)
+         POST /api/feed/start     (enciende la traída de datos en tiempo real)
+         POST /api/feed/stop      (la apaga: corta los websockets de Primary y Alpaca)
+  WS:    /ws                      (broadcast de snapshot computado + status)
+
+El feed arranca APAGADO: no se conecta a Primary/Alpaca hasta que la UI lo
+enciende (botón). Así no se mantiene la sesión del broker abierta de gusto.
 
 Solo market data. No envía órdenes.
 """
@@ -38,6 +43,7 @@ def _msg(type_: str, data=None) -> dict:
 
 def _status() -> dict:
     return {
+        "feedEnabled": store.feed_enabled,
         "primaryState": primary.state,
         "alpacaState": alpaca.state,
         "market": market_status(),
@@ -97,36 +103,40 @@ async def _broadcaster() -> None:
             log.exception("Error en broadcaster")
 
 
+async def _apply_feed_state() -> None:
+    """Conecta o desconecta las fuentes de datos según el flag de feed."""
+    if store.feed_enabled:
+        if not primary.bootstrapped:
+            await asyncio.to_thread(primary.bootstrap)
+        await asyncio.to_thread(primary.connect_ws)
+        with contextlib.suppress(Exception):
+            alpaca.start()
+    else:
+        with contextlib.suppress(Exception):
+            alpaca.stop()
+        await asyncio.to_thread(primary.disconnect_ws, "feed apagado")
+
+
 async def _connection_supervisor() -> None:
-    """Mantiene el websocket de Primary conectado de forma permanente."""
+    """Mantiene el estado de las conexiones alineado con el flag de feed:
+    reconecta si se cayó estando encendido, y corta si se apagó."""
     while True:
         try:
-            if not primary.bootstrapped:
-                await asyncio.to_thread(primary.bootstrap)
-            if primary.state in ("disconnected", "idle"):
-                await asyncio.to_thread(primary.connect_ws)
-            await asyncio.sleep(30)
+            await _apply_feed_state()
+            await asyncio.sleep(10)
         except asyncio.CancelledError:
             break
         except Exception:  # noqa: BLE001
             log.exception("Error en connection supervisor")
-            await asyncio.sleep(30)
+            await asyncio.sleep(10)
 
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    log.info("Iniciando server en %s:%d", config.host, config.port)
-    try:
-        await asyncio.to_thread(primary.bootstrap)
-        # Conectar el WS ya en el arranque: trae el último snapshot completo.
-        await asyncio.to_thread(primary.connect_ws)
-    except Exception:  # noqa: BLE001
-        log.exception("Bootstrap/conexión pyRofex falló (se reintentará)")
-
-    # Alpaca corre en su propio thread (no bloquea el arranque).
-    with contextlib.suppress(Exception):
-        alpaca.start()
-
+    log.info(
+        "Iniciando server en %s:%d · feed APAGADO (encendé desde la UI)",
+        config.host, config.port,
+    )
     tasks = [
         asyncio.create_task(_broadcaster()),
         asyncio.create_task(_connection_supervisor()),
@@ -144,9 +154,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="GGAL · ADR / BYMA / Futuros", lifespan=lifespan)
+
+_allow_origins = (
+    ["*"]
+    if config.cors_origins.strip() == "*"
+    else [o.strip() for o in config.cors_origins.split(",") if o.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allow_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -167,6 +183,20 @@ async def snapshot():
     snap = store.computed_snapshot()
     snap["status"] = _status()
     return snap
+
+
+@app.post("/api/feed/start")
+async def feed_start():
+    store.set_feed_enabled(True)
+    await _apply_feed_state()
+    return {"feedEnabled": True}
+
+
+@app.post("/api/feed/stop")
+async def feed_stop():
+    store.set_feed_enabled(False)
+    await _apply_feed_state()
+    return {"feedEnabled": False}
 
 
 @app.websocket("/ws")

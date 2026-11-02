@@ -60,6 +60,17 @@ class MarketStore:
         self._adr: dict[str, Any] = {}         # ADR (Alpaca) mergeado
         self._adr_ts: float = 0.0
         self._dirty = False
+        self._feed_enabled = False
+
+    # ---------- feed on/off ----------
+    @property
+    def feed_enabled(self) -> bool:
+        with self._lock:
+            return self._feed_enabled
+
+    def set_feed_enabled(self, value: bool) -> None:
+        with self._lock:
+            self._feed_enabled = bool(value)
 
     # ---------- instrumentos (Primary) ----------
     def set_instruments(

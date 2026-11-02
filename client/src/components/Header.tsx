@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useMarket } from "../store/market";
+import { setFeed } from "../lib/api";
 import { fmtTime } from "../lib/format";
 import type { ConnState } from "../types";
 
@@ -38,6 +40,40 @@ const CONN_LABEL: Record<ConnState, string> = {
   disabled: "no config.",
 };
 
+function FeedButton() {
+  const feedEnabled = useMarket((s) => s.status?.feedEnabled ?? false);
+  const [pending, setPending] = useState(false);
+
+  async function toggle() {
+    setPending(true);
+    try {
+      await setFeed(!feedEnabled);
+    } catch {
+      /* el status real llega por el WS */
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const label = pending
+    ? feedEnabled
+      ? "Apagando…"
+      : "Encendiendo…"
+    : feedEnabled
+      ? "⏸ Apagar datos"
+      : "▶ Encender datos";
+
+  const cls = feedEnabled
+    ? "btn border-bear/50 text-bear hover:bg-bear/10"
+    : "btn-accent";
+
+  return (
+    <button onClick={toggle} disabled={pending} className={`${cls} disabled:opacity-60`}>
+      {label}
+    </button>
+  );
+}
+
 export function Header() {
   const { status, wsConnected, lastUpdate } = useMarket();
 
@@ -49,13 +85,16 @@ export function Header() {
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
-        <div>
-          <h1 className="text-lg font-semibold text-text">
-            GGAL <span className="text-accent">· Tiempo real</span>
-          </h1>
-          <p className="text-xs text-text-dim">
-            ADR (NYSE) · Acción (BYMA) · Futuros (Rofex) · TNA / TEA implícita
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-lg font-semibold text-text">
+              GGAL <span className="text-accent">· Tiempo real</span>
+            </h1>
+            <p className="text-xs text-text-dim">
+              ADR (NYSE) · Acción (BYMA) · Futuros (Rofex) · TNA / TEA implícita
+            </p>
+          </div>
+          <FeedButton />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -64,11 +103,7 @@ export function Header() {
             state={market?.open ? "abierto" : "cerrado"}
             on={!!market?.open}
           />
-          <Badge
-            label="NYSE"
-            state={us?.open ? "abierto" : "cerrado"}
-            on={!!us?.open}
-          />
+          <Badge label="NYSE" state={us?.open ? "abierto" : "cerrado"} on={!!us?.open} />
           <Badge
             label="Primary"
             state={CONN_LABEL[primary]}
