@@ -4,6 +4,7 @@ import { QuoteCard } from "./components/QuoteCard";
 import { FutureCard } from "./components/FutureCard";
 import { useMarket } from "./store/market";
 import { connectWs } from "./lib/ws";
+import { openWidget, closeWidget, pipSupported, isWidgetOpen } from "./lib/pip";
 import { fmtArs, fmtInt } from "./lib/format";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,22 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function App() {
   useEffect(() => {
     connectWs();
+  }, []);
+
+  // Shortcuts del widget: Ctrl+W muestra, Ctrl+Q esconde.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      if (e.code === "KeyQ") {
+        e.preventDefault();
+        closeWidget();
+      } else if (e.code === "KeyW") {
+        e.preventDefault();
+        if (pipSupported() && !isWidgetOpen()) openWidget().catch(() => {});
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const { snapshot, status } = useMarket();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMarket } from "../store/market";
 import { setFeed } from "../lib/api";
-import { pipSupported, isWidgetOpen, openWidget, closeWidget } from "../lib/pip";
+import { pipSupported, openWidget, closeWidget } from "../lib/pip";
 import { fmtTime } from "../lib/format";
 import type { ConnState } from "../types";
 
@@ -76,12 +76,11 @@ function FeedButton() {
 }
 
 function WidgetButton() {
-  const [open, setOpen] = useState(false);
+  const open = useMarket((s) => s.widgetOpen);
 
   async function toggle() {
-    if (isWidgetOpen()) {
+    if (open) {
       closeWidget();
-      setOpen(false);
       return;
     }
     if (!pipSupported()) {
@@ -91,10 +90,9 @@ function WidgetButton() {
       return;
     }
     try {
-      await openWidget(() => setOpen(false));
-      setOpen(true);
+      await openWidget();
     } catch {
-      setOpen(false);
+      /* ignore */
     }
   }
 
@@ -102,7 +100,7 @@ function WidgetButton() {
     <button
       onClick={toggle}
       className="btn"
-      title="Widget flotante siempre-encima con ADR y TNA de los futuros (Chrome/Edge)"
+      title="Widget flotante siempre-encima (Ctrl+W mostrar · Ctrl+Q esconder) — Chrome/Edge"
     >
       {open ? "✕ Widget" : "⧉ Widget"}
     </button>

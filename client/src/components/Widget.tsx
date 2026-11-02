@@ -15,6 +15,12 @@ export function Widget() {
   const live = feedEnabled && wsConnected;
   const up = (adr?.changePct ?? 0) >= 0;
 
+  // Vencimiento más cercano (los futuros vienen ordenados por vto): TNA del último operado.
+  const nearest = futures[0] ?? null;
+  const tnaLast = nearest
+    ? tnaFromPrice(nearest.last, nearest.spotRef ?? spotRef, nearest.daysToMaturity)
+    : null;
+
   return (
     <div className="w">
       <div className="hdr">
@@ -29,6 +35,13 @@ export function Widget() {
           {adr?.changePct != null ? fmtSignedPct(adr.changePct) : "—"}
         </span>
       </div>
+
+      {nearest && (
+        <div className="last">
+          <span className="lbl">TNA {nearest.label} · últ.</span>
+          <span className="val">{tnaLast != null ? fmtPct(tnaLast) : "—"}</span>
+        </div>
+      )}
 
       <div className="futs">
         <div className="frow fhead">
