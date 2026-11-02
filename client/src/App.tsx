@@ -20,14 +20,15 @@ export default function App() {
     connectWs();
   }, []);
 
-  // Shortcuts del widget: Ctrl+W muestra, Ctrl+Q esconde.
+  // Shortcuts del widget: Ctrl+B muestra, Ctrl+Q esconde.
+  // (Ctrl+W no se puede usar: el navegador lo reserva para "cerrar pestaña".)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
       if (e.code === "KeyQ") {
         e.preventDefault();
         closeWidget();
-      } else if (e.code === "KeyW") {
+      } else if (e.code === "KeyB") {
         e.preventDefault();
         if (pipSupported() && !isWidgetOpen()) openWidget().catch(() => {});
       }
