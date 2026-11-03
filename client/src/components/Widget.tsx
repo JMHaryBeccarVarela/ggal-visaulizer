@@ -16,19 +16,25 @@ export function Widget() {
   const live = feedEnabled && wsConnected;
   const up = (adr?.changePct ?? 0) >= 0;
 
-  // Flash verde de TODO el widget cuando varía el precio del ADR.
+  // Al moverse el precio del ADR, glow difuminado de todo el widget: verde si
+  // sube / rojo si baja, con intensidad según el tamaño del movimiento
+  // (>20c fuerte, >10c medio, <=10c suave).
   const adrLast = adr?.last ?? null;
   const prev = useRef<number | null>(null);
   useEffect(() => {
     if (adrLast == null || !isFinite(adrLast)) return;
-    if (prev.current != null && adrLast !== prev.current) {
+    const p = prev.current;
+    if (p != null && adrLast !== p) {
+      const abs = Math.abs(adrLast - p);
+      const [blur, spread, alpha] =
+        abs > 0.2 ? [72, 26, 0.85] : abs > 0.1 ? [56, 16, 0.6] : [42, 9, 0.42];
+      const rgb = adrLast > p ? "34,197,94" : "239,68,68";
       const b = document.body;
-      b.classList.remove("flash");
-      void b.offsetWidth; // reinicia la animación
-      b.classList.add("flash");
-      const t = window.setTimeout(() => b.classList.remove("flash"), 700);
-      prev.current = adrLast;
-      return () => window.clearTimeout(t);
+      b.style.transition = "none";
+      b.style.boxShadow = `inset 0 0 ${blur}px ${spread}px rgba(${rgb},${alpha})`;
+      void b.offsetWidth; // commit del glow
+      b.style.transition = "box-shadow .85s ease-out";
+      b.style.boxShadow = `inset 0 0 0 0 rgba(${rgb},0)`;
     }
     prev.current = adrLast;
   }, [adrLast]);

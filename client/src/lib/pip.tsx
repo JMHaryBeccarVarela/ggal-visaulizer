@@ -25,8 +25,6 @@ const WIDGET_CSS = `
     user-select: none;
     overflow: hidden;
   }
-  @keyframes flashGreen { 0% { background: #114d29; } 100% { background: #0a0e14; } }
-  body.flash { animation: flashGreen .7s ease-out; }
   .w { display: flex; flex-direction: column; gap: 10px; }
   .hdr { display: flex; align-items: center; justify-content: space-between; }
   .ttl { font-weight: 700; color: #f59e0b; letter-spacing: .06em; font-size: 15px; }
@@ -35,7 +33,7 @@ const WIDGET_CSS = `
   .adr { display: flex; align-items: baseline; gap: 8px; }
   .adr .lbl { color: #8b96a3; font-size: 11px; }
   .adr .px { font-size: 26px; font-weight: 600; }
-  .adr .chg { margin-left: auto; font-size: 13px; }
+  .adr .chg { margin-left: auto; font-size: 20px; font-weight: 700; }
   .chg.up { color: #22c55e; } .chg.dn { color: #ef4444; }
   .near {
     background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
