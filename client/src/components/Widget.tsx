@@ -1,7 +1,41 @@
 import { useEffect, useRef } from "react";
 import { useMarket } from "../store/market";
 import { tnaFromPrice, spreadColor } from "../lib/rates";
+import { sessionPoints, type ChartPoint } from "../lib/bars";
 import { fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtNum, fmtInt } from "../lib/format";
+
+// Sparkline (SVG) de la rueda intradía del ADR.
+function Spark({ points }: { points: ChartPoint[] }) {
+  if (points.length < 2) return null;
+  const W = 300;
+  const H = 46;
+  const prices = points.map((p) => p.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const n = points.length;
+  const x = (i: number) => (i / (n - 1)) * W;
+  const y = (v: number) => H - 2 - ((v - min) / range) * (H - 4);
+  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
+  const up = (prices[n - 1] ?? 0) >= (prices[0] ?? 0);
+  const color = up ? "#16a34a" : "#dc2626";
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ width: "100%", height: 46, display: "block" }}
+    >
+      <polygon points={`0,${H} ${line} ${W},${H}`} fill={color} fillOpacity="0.12" />
+      <polyline
+        points={line}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
 
 // Contenido del widget flotante (se monta dentro de la ventana Picture-in-Picture).
 // Usa el mismo store global, así que se actualiza en tiempo real con el feed.
@@ -9,6 +43,7 @@ export function Widget() {
   const snapshot = useMarket((s) => s.snapshot);
   const feedEnabled = useMarket((s) => s.status?.feedEnabled ?? false);
   const wsConnected = useMarket((s) => s.wsConnected);
+  const bars = useMarket((s) => s.adrBars);
 
   const adr = snapshot?.adr ?? null;
   const spotRef = snapshot?.spot?.ref ?? null;
@@ -67,6 +102,8 @@ export function Widget() {
           {adr?.changePct != null ? fmtSignedPct(adr.changePct) : "—"}
         </span>
       </div>
+
+      <Spark points={sessionPoints(bars, adrLast)} />
 
       {nearest && (
         <div className="near">

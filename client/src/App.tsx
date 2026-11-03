@@ -5,6 +5,7 @@ import { FutureCard } from "./components/FutureCard";
 import { AdrChart } from "./components/AdrChart";
 import { useMarket } from "./store/market";
 import { connectWs } from "./lib/ws";
+import { fetchAdrBars } from "./lib/bars";
 import { openWidget, closeWidget, pipSupported, isWidgetOpen } from "./lib/pip";
 import { fmtArs, fmtInt } from "./lib/format";
 
@@ -19,6 +20,13 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function App() {
   useEffect(() => {
     connectWs();
+  }, []);
+
+  // Barras intradía del ADR para el gráfico (refresco cada 30s; el server cachea).
+  useEffect(() => {
+    fetchAdrBars();
+    const id = window.setInterval(fetchAdrBars, 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   // Shortcuts del widget: Alt+1 muestra, Alt+2 esconde.
