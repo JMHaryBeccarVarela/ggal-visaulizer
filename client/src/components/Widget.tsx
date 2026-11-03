@@ -63,6 +63,7 @@ export function Widget() {
   const adrLast = adr?.last ?? null;
   const prev = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const flashTimer = useRef<number | null>(null);
   useEffect(() => {
     if (adrLast == null || !isFinite(adrLast)) return;
     const p = prev.current;
@@ -70,15 +71,20 @@ export function Widget() {
       // ownerDocument.body = el body de la ventana flotante (no el de la página).
       const b = rootRef.current?.ownerDocument?.body;
       if (b) {
-        // Todo el fondo del widget se tiñe fuerte verde/rojo y vuelve a blanco.
+        // Tono según la magnitud del movimiento (suave / medio / fuerte).
         const abs = Math.abs(adrLast - p);
-        const alpha = abs > 0.2 ? 1 : abs > 0.1 ? 0.6 : 0.3;
-        const rgb = adrLast > p ? "34,197,94" : "239,68,68";
+        const color = adrLast > p
+          ? abs > 0.2 ? "#16a34a" : abs > 0.1 ? "#4ade80" : "#bbf7d0"
+          : abs > 0.2 ? "#dc2626" : abs > 0.1 ? "#f87171" : "#fecaca";
+        if (flashTimer.current != null) window.clearTimeout(flashTimer.current);
         b.style.transition = "none";
-        b.style.background = `rgba(${rgb},${alpha})`;
+        b.style.background = color;
         void b.offsetWidth; // commit del color
-        b.style.transition = "background .9s ease-out";
-        b.style.background = "#ffffff";
+        // Mantiene el color un momento y recién ahí se destiñe a blanco (dura más).
+        flashTimer.current = window.setTimeout(() => {
+          b.style.transition = "background 1.6s ease-out";
+          b.style.background = "#ffffff";
+        }, 350);
       }
     }
     prev.current = adrLast;
