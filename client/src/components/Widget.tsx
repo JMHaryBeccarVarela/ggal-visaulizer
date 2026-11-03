@@ -21,20 +21,24 @@ export function Widget() {
   // (>20c fuerte, >10c medio, <=10c suave).
   const adrLast = adr?.last ?? null;
   const prev = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (adrLast == null || !isFinite(adrLast)) return;
     const p = prev.current;
     if (p != null && adrLast !== p) {
-      const abs = Math.abs(adrLast - p);
-      const [blur, spread, alpha] =
-        abs > 0.2 ? [72, 26, 0.85] : abs > 0.1 ? [56, 16, 0.6] : [42, 9, 0.42];
-      const rgb = adrLast > p ? "34,197,94" : "239,68,68";
-      const b = document.body;
-      b.style.transition = "none";
-      b.style.boxShadow = `inset 0 0 ${blur}px ${spread}px rgba(${rgb},${alpha})`;
-      void b.offsetWidth; // commit del glow
-      b.style.transition = "box-shadow .85s ease-out";
-      b.style.boxShadow = `inset 0 0 0 0 rgba(${rgb},0)`;
+      // ownerDocument.body = el body de la ventana flotante (no el de la página).
+      const b = rootRef.current?.ownerDocument?.body;
+      if (b) {
+        const abs = Math.abs(adrLast - p);
+        const [blur, spread, alpha] =
+          abs > 0.2 ? [90, 34, 0.9] : abs > 0.1 ? [66, 20, 0.65] : [46, 10, 0.45];
+        const rgb = adrLast > p ? "34,197,94" : "239,68,68";
+        b.style.transition = "none";
+        b.style.boxShadow = `inset 0 0 ${blur}px ${spread}px rgba(${rgb},${alpha})`;
+        void b.offsetWidth; // commit del glow
+        b.style.transition = "box-shadow .9s ease-out";
+        b.style.boxShadow = `inset 0 0 0 0 rgba(${rgb},0)`;
+      }
     }
     prev.current = adrLast;
   }, [adrLast]);
@@ -50,7 +54,7 @@ export function Widget() {
     nearest && nearest.ask != null && nearest.bid != null ? nearest.ask - nearest.bid : null;
 
   return (
-    <div className="w">
+    <div className="w" ref={rootRef}>
       <div className="hdr">
         <span className="ttl">GGAL</span>
         <span className={`dot ${live ? "on" : "off"}`} />
