@@ -133,46 +133,16 @@ En Render, seteá `CORS_ORIGINS` = la URL de Netlify y redeploy.
 
 Abrís el sitio de Netlify y con **▶ Encender datos** prendés el stream en vivo.
 
-## Widget de escritorio (always-on-top)
+## Widget flotante (always-on-top)
 
-Una página web no puede quedar por encima de toda la pantalla fuera del
-navegador, así que el widget flotante "de verdad" es una mini app de escritorio
-con **Electron** que reusa la misma UI: una ventana **sin bordes, transparente y
-siempre-encima** que flota sobre cualquier app (incluso en pantalla completa).
+En el sitio, el botón **⧉ Widget** abre una ventana flotante siempre-encima
+(Document Picture-in-Picture), en tiempo real: ADR, TNA bid/último/ask del
+vencimiento más cercano con sus precios, spread (coloreado) y volumen. Sin
+instalar nada.
 
-```bash
-npm install        # una vez, trae electron
-npm run widget     # abre el widget flotante
-```
-
-- Muestra el **ADR**, la **TNA del último** y el **spread de puntas** del vto más
-  cercano, y la **TNA bid/ask** de cada futuro — en tiempo real desde la API.
-- **Atajos globales** (funcionan en toda la PC):
-  `Alt+1` mostrar · `Alt+2` esconder · `Alt+Shift+Q` cerrar.
-- Se **arrastra** desde cualquier parte; la **✕** lo esconde (lo volvés con `Alt+1`).
-- Apunta por defecto a la API de Render; se cambia con
-  `GGAL_API=https://tu-api npm run widget`.
-- Requiere que el **feed esté encendido** (se prende desde el sitio).
-
-> El widget del navegador (botón ⧉ Widget, Document PiP) sigue disponible para
-> Chrome/Edge; el de escritorio (Electron) anda en cualquier lado y flota sobre
-> todo.
-
-### Empaquetar como .exe
-
-```bash
-npm run dist:widget
-```
-
-Genera la app en `release/win-unpacked/` → ejecutable **`GGAL Widget.exe`**
-(doble clic, sin terminal ni `npm`). Podés copiar esa carpeta a donde quieras
-o hacerle un acceso directo al `.exe`.
-
-> Para generar **un único `.exe` portable** (en vez de la carpeta), Windows
-> necesita el **Modo de desarrollador** activado (Configuración → Privacidad y
-> seguridad → Para desarrolladores), porque el empaquetador crea symlinks al
-> firmar. Con eso, `npm run dist:widget` produce `release/GGAL-Widget.exe` de un
-> solo archivo.
+- Funciona en **Chrome/Edge**. Atajos: **Alt+1** mostrar · **Alt+2** esconder.
+- Necesita el **feed encendido** (botón ▶ Encender datos) y la pestaña del sitio
+  abierta de fondo.
 
 ## Stack
 

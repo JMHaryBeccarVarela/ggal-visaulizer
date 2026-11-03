@@ -1,10 +1,9 @@
 {
   "name": "derivados",
   "version": "0.2.0",
-  "description": "GGAL en tiempo real — ADR / BYMA / Futuros + widget de escritorio",
+  "description": "GGAL en tiempo real — ADR / BYMA / Futuros",
   "author": "D&G",
   "private": true,
-  "main": "electron/main.cjs",
   "workspaces": [
     "client"
   ],
@@ -15,31 +14,9 @@
     "build": "npm run build -w client",
     "typecheck": "npm run typecheck -w client",
     "install:server": "py -mpip install -r server/requirements.txt",
-    "start": "npm run dev",
-    "widget": "electron electron/main.cjs",
-    "dist:widget": "electron-builder"
+    "start": "npm run dev"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
-  },
-  "build": {
-    "appId": "com.ggal.widget",
-    "productName": "GGAL Widget",
-    "files": [
-      "electron/**/*",
-      "package.json"
-    ],
-    "directories": {
-      "output": "release"
-    },
-    "win": {
-      "icon": "electron/icon.ico",
-      "target": "portable"
-    },
-    "portable": {
-      "artifactName": "GGAL-Widget.exe"
-    }
+    "concurrently": "^8.2.2"
   }
 }
