@@ -24,6 +24,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .alpaca import alpaca
+from .finnhub import finnhub
 from .config import config
 from .market_hours import market_status, us_market_status
 from .primary import primary
@@ -45,7 +46,7 @@ def _status() -> dict:
     return {
         "feedEnabled": store.feed_enabled,
         "primaryState": primary.state,
-        "alpacaState": alpaca.state,
+        "adrState": finnhub.state,
         "market": market_status(),
         "usMarket": us_market_status(),
     }
@@ -110,10 +111,10 @@ async def _apply_feed_state() -> None:
             await asyncio.to_thread(primary.bootstrap)
         await asyncio.to_thread(primary.connect_ws)
         with contextlib.suppress(Exception):
-            alpaca.start()
+            finnhub.start()
     else:
         with contextlib.suppress(Exception):
-            alpaca.stop()
+            finnhub.stop()
         await asyncio.to_thread(primary.disconnect_ws, "feed apagado")
 
 
@@ -149,7 +150,7 @@ async def lifespan(app: FastAPI):
         with contextlib.suppress(Exception):
             await asyncio.gather(*tasks, return_exceptions=True)
         with contextlib.suppress(Exception):
-            alpaca.stop()
+            finnhub.stop()
         await asyncio.to_thread(primary.disconnect_ws, "shutdown")
 
 

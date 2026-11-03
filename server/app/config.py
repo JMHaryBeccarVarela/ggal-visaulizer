@@ -49,11 +49,14 @@ class Config:
     spot_settlement: str      # "24hs" | "CI": plazo usado como spot para la tasa
     max_futures: int          # cuántos vencimientos mostrar (0 = todos los listados)
 
-    # ---- Alpaca (ADR GGAL en NYSE/NASDAQ) ----
+    # ---- ADR GGAL en NYSE/NASDAQ ----
+    # Finnhub da el quote consolidado (precio/%); Alpaca queda solo para el
+    # gráfico intradía (las velas de Finnhub free son premium).
+    finnhub_key: str
     alpaca_key: str
     alpaca_secret: str
     alpaca_feed: str          # "iex" (free) | "sip" (pago)
-    adr_symbol: str           # ticker del ADR en Alpaca, p.ej. "GGAL"
+    adr_symbol: str           # ticker del ADR, p.ej. "GGAL"
     adr_ratio: float          # acciones ordinarias por ADR (GGAL = 10)
 
     # ---- Server ----
@@ -66,6 +69,10 @@ class Config:
     def alpaca_enabled(self) -> bool:
         return bool(self.alpaca_key and self.alpaca_secret)
 
+    @property
+    def finnhub_enabled(self) -> bool:
+        return bool(self.finnhub_key)
+
 
 config = Config(
     user=_require("PRIMARY_USER"),
@@ -77,6 +84,7 @@ config = Config(
     futures_market=_env("GGAL_FUTURES_MARKET", "ROFX"),
     spot_settlement=_env("GGAL_SPOT_SETTLEMENT", "24hs"),
     max_futures=int(_env("GGAL_MAX_FUTURES", "2")),
+    finnhub_key=os.environ.get("FINNHUB_KEY", ""),
     alpaca_key=os.environ.get("ALPACA_KEY", ""),
     alpaca_secret=os.environ.get("ALPACA_SECRET", ""),
     alpaca_feed=_env("ALPACA_FEED", "iex"),

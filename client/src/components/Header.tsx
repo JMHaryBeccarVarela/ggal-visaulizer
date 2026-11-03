@@ -113,7 +113,7 @@ export function Header() {
   const market = status?.market;
   const us = status?.usMarket;
   const primary = status?.primaryState ?? "disconnected";
-  const alpaca = status?.alpacaState ?? "disconnected";
+  const adr = status?.adrState ?? "disconnected";
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
@@ -147,10 +147,10 @@ export function Header() {
             warn={primary === "connecting"}
           />
           <Badge
-            label="Alpaca"
-            state={CONN_LABEL[alpaca]}
-            on={alpaca === "connected"}
-            warn={alpaca === "connecting" || alpaca === "authenticating"}
+            label="ADR"
+            state={CONN_LABEL[adr]}
+            on={adr === "connected"}
+            warn={adr === "connecting" || adr === "authenticating"}
           />
           <div className="flex items-center gap-2 rounded-md border border-border bg-bg-elev px-2.5 py-1">
             <Dot on={wsConnected} />
