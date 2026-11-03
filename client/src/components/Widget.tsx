@@ -29,15 +29,15 @@ export function Widget() {
       // ownerDocument.body = el body de la ventana flotante (no el de la página).
       const b = rootRef.current?.ownerDocument?.body;
       if (b) {
+        // Todo el fondo del widget se tiñe fuerte verde/rojo y vuelve a blanco.
         const abs = Math.abs(adrLast - p);
-        const [blur, spread, alpha] =
-          abs > 0.2 ? [90, 34, 0.9] : abs > 0.1 ? [66, 20, 0.65] : [46, 10, 0.45];
+        const alpha = abs > 0.2 ? 1 : abs > 0.1 ? 0.6 : 0.3;
         const rgb = adrLast > p ? "34,197,94" : "239,68,68";
         b.style.transition = "none";
-        b.style.boxShadow = `inset 0 0 ${blur}px ${spread}px rgba(${rgb},${alpha})`;
-        void b.offsetWidth; // commit del glow
-        b.style.transition = "box-shadow .9s ease-out";
-        b.style.boxShadow = `inset 0 0 0 0 rgba(${rgb},0)`;
+        b.style.background = `rgba(${rgb},${alpha})`;
+        void b.offsetWidth; // commit del color
+        b.style.transition = "background .9s ease-out";
+        b.style.background = "#ffffff";
       }
     }
     prev.current = adrLast;
