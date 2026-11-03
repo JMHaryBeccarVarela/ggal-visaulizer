@@ -26,12 +26,17 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: any[] }
 export function AdrChart() {
   const bars = useMarket((s) => s.adrBars);
   const adrLast = useMarket((s) => s.snapshot?.adr?.last ?? null);
+  const changePct = useMarket((s) => s.snapshot?.adr?.changePct ?? null);
   const points = sessionPoints(bars, adrLast);
 
-  const first = points[0]?.price ?? null;
-  const last = points.at(-1)?.price ?? null;
-  const up = last != null && first != null ? last >= first : true;
-  const color = up ? "#22c55e" : "#ef4444";
+  // Color por variación del día (vs cierre previo), como Google.
+  const down = changePct != null && changePct < 0;
+  const color = down ? "#ef4444" : "#22c55e";
+
+  // Eje X = rueda completa (6.5 h); la línea se va completando hacia la derecha.
+  const SESSION_MS = 23_400_000;
+  const firstTs = points[0]?.ts ?? 0;
+  const endTs = Math.max(firstTs + SESSION_MS, points.at(-1)?.ts ?? firstTs);
 
   return (
     <section className="panel">
@@ -58,8 +63,8 @@ export function AdrChart() {
               <XAxis
                 dataKey="ts"
                 type="number"
-                scale="time"
-                domain={["dataMin", "dataMax"]}
+                domain={[firstTs, endTs]}
+                allowDataOverflow
                 tickFormatter={hhmm}
                 tick={{ fill: "#5a6571", fontSize: 11 }}
                 stroke="#1f2a36"

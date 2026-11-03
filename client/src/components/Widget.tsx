@@ -5,27 +5,33 @@ import { sessionPoints, type ChartPoint } from "../lib/bars";
 import { fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtNum, fmtInt } from "../lib/format";
 
 // Sparkline (SVG) de la rueda intradía del ADR.
-function Spark({ points }: { points: ChartPoint[] }) {
+function Spark({ points, down }: { points: ChartPoint[]; down: boolean }) {
   if (points.length < 2) return null;
   const W = 300;
   const H = 46;
+  const SESSION_MS = 23_400_000; // rueda de 6.5 h
   const prices = points.map((p) => p.price);
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min || 1;
-  const n = points.length;
-  const x = (i: number) => (i / (n - 1)) * W;
+  const firstTs = points[0]?.ts ?? 0;
+  const lastTs = points[points.length - 1]?.ts ?? firstTs;
+  const span = Math.max(firstTs + SESSION_MS, lastTs) - firstTs || 1;
+  const x = (ts: number) => ((ts - firstTs) / span) * W;
   const y = (v: number) => H - 2 - ((v - min) / range) * (H - 4);
-  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
-  const up = (prices[n - 1] ?? 0) >= (prices[0] ?? 0);
-  const color = up ? "#16a34a" : "#dc2626";
+  const line = points.map((p) => `${x(p.ts).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
+  const color = down ? "#dc2626" : "#16a34a";
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
       style={{ width: "100%", height: 46, display: "block" }}
     >
-      <polygon points={`0,${H} ${line} ${W},${H}`} fill={color} fillOpacity="0.12" />
+      <polygon
+        points={`0,${H} ${line} ${x(lastTs).toFixed(1)},${H}`}
+        fill={color}
+        fillOpacity="0.12"
+      />
       <polyline
         points={line}
         fill="none"
@@ -103,7 +109,7 @@ export function Widget() {
         </span>
       </div>
 
-      <Spark points={sessionPoints(bars, adrLast)} />
+      <Spark points={sessionPoints(bars, adrLast)} down={(adr?.changePct ?? 0) < 0} />
 
       {nearest && (
         <div className="near">
