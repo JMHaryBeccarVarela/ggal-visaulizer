@@ -16,6 +16,7 @@ import json
 import logging
 import threading
 import time
+from datetime import datetime, timezone, timedelta
 
 import requests
 import websocket  # websocket-client
@@ -35,6 +36,7 @@ class AlpacaClient:
         self._ws: websocket.WebSocketApp | None = None
         self._thread: threading.Thread | None = None
         self._stop = False
+        self._bars_cache: dict = {"ts": 0.0, "data": None}
 
     @property
     def state(self) -> str:
@@ -118,6 +120,43 @@ class AlpacaClient:
                 "ADR %s seed REST: last=%s prevClose=%s",
                 config.adr_symbol, fields.get("last"), fields.get("prevClose"),
             )
+
+    # ---------- barras intradía (REST) ----------
+    def fetch_bars(self) -> dict:
+        """Barras de 5min del ADR (última rueda) desde Alpaca, con cache de 30s."""
+        now = time.time()
+        cached = self._bars_cache.get("data")
+        if cached is not None and now - self._bars_cache.get("ts", 0.0) < 30:
+            return cached
+        empty = {"bars": [], "symbol": config.adr_symbol}
+        if not config.alpaca_enabled:
+            return empty
+        start = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            r = requests.get(
+                f"https://data.alpaca.markets/v2/stocks/{config.adr_symbol}/bars",
+                params={
+                    "timeframe": "5Min",
+                    "start": start,
+                    "feed": config.alpaca_feed,
+                    "limit": 1000,
+                },
+                headers=self._headers(),
+                timeout=10,
+            )
+            r.raise_for_status()
+            d = r.json()
+            bars = [
+                {"t": b.get("t"), "c": b.get("c")}
+                for b in (d.get("bars") or [])
+                if b.get("c") is not None
+            ]
+            out = {"bars": bars, "symbol": config.adr_symbol}
+            self._bars_cache = {"ts": now, "data": out}
+            return out
+        except Exception:  # noqa: BLE001
+            log.exception("Fallo al traer barras intradía del ADR")
+            return cached or empty
 
     # ---------- websocket ----------
     def _run(self) -> None:

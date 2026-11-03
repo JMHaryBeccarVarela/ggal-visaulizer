@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Header } from "./components/Header";
 import { QuoteCard } from "./components/QuoteCard";
 import { FutureCard } from "./components/FutureCard";
+import { AdrChart } from "./components/AdrChart";
 import { useMarket } from "./store/market";
 import { connectWs } from "./lib/ws";
 import { openWidget, closeWidget, pipSupported, isWidgetOpen } from "./lib/pip";
@@ -119,6 +120,8 @@ export default function App() {
             />
           </div>
         </section>
+
+        <AdrChart />
 
         {/* Futuros */}
         <section className="space-y-3">

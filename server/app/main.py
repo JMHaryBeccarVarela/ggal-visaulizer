@@ -178,6 +178,11 @@ async def instruments():
     return store.instruments_debug()
 
 
+@app.get("/api/adr/bars")
+async def adr_bars():
+    return await asyncio.to_thread(alpaca.fetch_bars)
+
+
 @app.get("/api/snapshot")
 async def snapshot():
     snap = store.computed_snapshot()
