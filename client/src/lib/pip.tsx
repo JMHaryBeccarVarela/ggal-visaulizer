@@ -20,7 +20,7 @@ const WIDGET_CSS = `
     border-radius: 22px;
     padding: 14px 18px;
     color: #0f172a;
-    font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    font-family: 'Trebuchet MS', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
     user-select: none;
     overflow: hidden;
@@ -30,10 +30,14 @@ const WIDGET_CSS = `
   .ttl { font-weight: 700; color: #d97706; letter-spacing: .06em; font-size: 15px; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; }
   .dot.on { background: #16a34a; box-shadow: 0 0 7px #16a34a; }
-  .adr { display: flex; align-items: baseline; gap: 8px; }
-  .adr .lbl { color: #64748b; font-size: 11px; }
-  .adr .px { font-size: 26px; font-weight: 700; }
-  .adr .chg { margin-left: auto; font-size: 20px; font-weight: 700; }
+  .local { display: flex; align-items: baseline; gap: 8px; }
+  .local .lbl { color: #64748b; font-size: 11px; }
+  .local .px { font-size: 31px; font-weight: 700; letter-spacing: -0.4px; }
+  .local .chg { margin-left: auto; font-size: 19px; font-weight: 700; }
+  .adr { display: flex; align-items: baseline; gap: 6px; }
+  .adr .lbl { color: #94a3b8; font-size: 10px; }
+  .adr .px { font-size: 16px; font-weight: 600; color: #475569; }
+  .adr .chg { margin-left: auto; font-size: 13px; font-weight: 600; }
   .chg.up { color: #16a34a; } .chg.dn { color: #dc2626; }
   .near {
     background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.45);
@@ -78,14 +82,8 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 340, height: 305 });
+  const win: Window = await dpip.requestWindow({ width: 340, height: 345 });
   pipWin = win;
-
-  const font = win.document.createElement("link");
-  font.rel = "stylesheet";
-  font.href =
-    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap";
-  win.document.head.appendChild(font);
 
   const style = win.document.createElement("style");
   style.textContent = WIDGET_CSS;

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useMarket } from "../store/market";
 import { tnaFromPrice, spreadColor } from "../lib/rates";
 import { sessionPoints, type ChartPoint } from "../lib/bars";
-import { fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtNum, fmtInt } from "../lib/format";
+import { fmtArs, fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtNum, fmtInt } from "../lib/format";
 
 // Sparkline (SVG) de la rueda intradía del ADR.
 function Spark({ points, down }: { points: ChartPoint[]; down: boolean }) {
@@ -52,10 +52,13 @@ export function Widget() {
   const bars = useMarket((s) => s.adrBars);
 
   const adr = snapshot?.adr ?? null;
+  const spot = snapshot?.spot ?? null;
+  const local = spot ? (spot.used === "CI" ? spot.ci : spot.t24) : null;
   const spotRef = snapshot?.spot?.ref ?? null;
   const futures = snapshot?.futures ?? [];
   const live = feedEnabled && wsConnected;
   const up = (adr?.changePct ?? 0) >= 0;
+  const localUp = (local?.changePct ?? 0) >= 0;
 
   // Al moverse el precio del ADR, glow difuminado de todo el widget: verde si
   // sube / rojo si baja, con intensidad según el tamaño del movimiento
@@ -105,6 +108,14 @@ export function Widget() {
       <div className="hdr">
         <span className="ttl">GGAL</span>
         <span className={`dot ${live ? "on" : "off"}`} />
+      </div>
+
+      <div className="local">
+        <span className="lbl">BYMA {spot?.used ?? ""}</span>
+        <span className="px">{fmtArs(local?.last ?? null)}</span>
+        <span className={`chg ${localUp ? "up" : "dn"}`}>
+          {local?.changePct != null ? fmtSignedPct(local.changePct) : "—"}
+        </span>
       </div>
 
       <div className="adr">
