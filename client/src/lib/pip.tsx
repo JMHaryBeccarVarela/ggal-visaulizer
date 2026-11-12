@@ -32,6 +32,9 @@ const WIDGET_CSS = `
   td.b { font-weight: 700; }
   td.big { font-size: 26px; font-weight: 700; line-height: 1.15; }
   td.mid { font-size: 17px; font-weight: 700; }
+  td.c { text-align: center; }
+  td.theo { font-size: 11px; line-height: 1.15; color: #7f7f7f; text-align: center; }
+  .leg { font-weight: 400; font-size: 11px; color: #595959; }
   td.sig { text-align: center; font-weight: 700; }
   .good { background: #c6efce; color: #006100; }
   .bad { background: #ffc7ce; color: #9c0006; }
@@ -62,7 +65,7 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 340, height: 310 });
+  const win: Window = await dpip.requestWindow({ width: 380, height: 265 });
   pipWin = win;
 
   // Carlito = equivalente métrico de Calibri, para equipos sin Office.

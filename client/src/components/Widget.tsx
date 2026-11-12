@@ -55,6 +55,8 @@ export function Widget() {
   const spot = snapshot?.spot ?? null;
   const local = spot ? (spot.used === "CI" ? spot.ci : spot.t24) : null;
   const spotRef = snapshot?.spot?.ref ?? null;
+  const theoStock = snapshot?.fx?.theoStock ?? null; // ADR × CCL bono ÷ ratio
+  const caucionDays = snapshot?.caucion?.days ?? 7;
   const futures = snapshot?.futures ?? [];
   const live = feedEnabled && wsConnected;
 
@@ -94,7 +96,6 @@ export function Widget() {
 
   // Vencimiento más cercano: TNA de bid/último/ask, precios, spread y volumen.
   const nearest = futures[0] ?? null;
-  const rest = futures.slice(1);
   const sref = nearest ? nearest.spotRef ?? spotRef : spotRef;
   const tBid = nearest ? tnaFromPrice(nearest.bid, sref, nearest.daysToMaturity) : null;
   // TNA del último operado: contra el spot del instante de la operación (server).
@@ -117,14 +118,18 @@ export function Widget() {
               <span className={`dot ${live ? "on" : ""}`} />
             </td>
             <td className="big">{fmtArs(local?.last ?? null)}</td>
-            <td className={`mid ${chgClass(local?.changePct)}`}>
+            <td className="theo">
+              <div>teórico CCL</div>
+              <div>{fmtPrice(theoStock)}</div>
+            </td>
+            <td className={`mid c ${chgClass(local?.changePct)}`}>
               {local?.changePct != null ? fmtSignedPct(local.changePct) : "—"}
             </td>
           </tr>
           <tr>
             <td className="l">ADR</td>
-            <td>{fmtUsd(adr?.last ?? null)}</td>
-            <td className={chgClass(adr?.changePct)}>
+            <td colSpan={2}>{fmtUsd(adr?.last ?? null)}</td>
+            <td className={`c ${chgClass(adr?.changePct)}`}>
               {adr?.changePct != null ? fmtSignedPct(adr.changePct) : "—"}
             </td>
           </tr>
@@ -170,7 +175,9 @@ export function Widget() {
               <td>{fmtNum(nearest.ask)}</td>
             </tr>
             <tr>
-              <td className="l">Teórico</td>
+              <td className="l">
+                Teórico <span className="leg">COC Cauc. {caucionDays}d.</span>
+              </td>
               <td className="b">{nearest.tnaTheo != null ? fmtPct(nearest.tnaTheo) : "—"}</td>
               <td colSpan={2}>{fmtNum(nearest.theoPrice)}</td>
             </tr>
@@ -186,32 +193,8 @@ export function Widget() {
         </table>
       )}
 
-      {futures.length === 0 ? (
+      {futures.length === 0 && (
         <div className="empty">{feedEnabled ? "esperando datos…" : "datos en pausa"}</div>
-      ) : rest.length === 0 ? null : (
-        <table>
-          <thead>
-            <tr>
-              <th>Futuro</th>
-              <th>TNA bid</th>
-              <th>TNA ask</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rest.map((f) => {
-              const sr = f.spotRef ?? spotRef;
-              const b = tnaFromPrice(f.bid, sr, f.daysToMaturity);
-              const a = tnaFromPrice(f.ask, sr, f.daysToMaturity);
-              return (
-                <tr key={f.symbol}>
-                  <td className="l">{f.label}</td>
-                  <td>{b != null ? fmtPct(b) : "—"}</td>
-                  <td>{a != null ? fmtPct(a) : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
       )}
     </div>
   );
