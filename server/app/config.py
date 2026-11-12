@@ -49,6 +49,13 @@ class Config:
     spot_settlement: str      # "24hs" | "CI": plazo usado como spot para la tasa
     max_futures: int          # cuántos vencimientos mostrar (0 = todos los listados)
 
+    # ---- Tasa teórica (cost of carry) y CCL por bonos ----
+    caucion_days: int         # plazo de la caución en pesos usada como libre de riesgo
+    signal_threshold: float   # diferencia mínima de TNA (fracción) para el cartel
+    bond_ars: str             # bono en pesos para el CCL, p.ej. "AL30"
+    bond_usd: str             # misma especie en dólar cable, p.ej. "AL30C"
+    bond_settlement: str      # plazo de los bonos: "24hs" | "CI"
+
     # ---- ADR GGAL en NYSE/NASDAQ ----
     # Finnhub da el quote consolidado (precio/%); Alpaca queda solo para el
     # gráfico intradía (las velas de Finnhub free son premium).
@@ -84,6 +91,11 @@ config = Config(
     futures_market=_env("GGAL_FUTURES_MARKET", "ROFX"),
     spot_settlement=_env("GGAL_SPOT_SETTLEMENT", "24hs"),
     max_futures=int(_env("GGAL_MAX_FUTURES", "2")),
+    caucion_days=int(_env("CAUCION_DAYS", "7")),
+    signal_threshold=float(_env("GGAL_SIGNAL_THRESHOLD", "0.02")),
+    bond_ars=_env("CCL_BOND_ARS", "AL30"),
+    bond_usd=_env("CCL_BOND_USD", "AL30C"),
+    bond_settlement=_env("CCL_BOND_SETTLEMENT", "24hs"),
     finnhub_key=os.environ.get("FINNHUB_KEY", ""),
     alpaca_key=os.environ.get("ALPACA_KEY", ""),
     alpaca_secret=os.environ.get("ALPACA_SECRET", ""),

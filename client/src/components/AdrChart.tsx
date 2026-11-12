@@ -1,6 +1,7 @@
 import {
   Area,
   AreaChart,
+  CartesianGrid,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,7 +17,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: any[] }
   if (!active || !payload?.length) return null;
   const p = payload[0].payload as ChartPoint;
   return (
-    <div className="rounded-md border border-border bg-bg-elev px-2.5 py-1.5 text-xs shadow-panel">
+    <div className="border border-border bg-white px-2 py-0.5 text-[13px]">
       <div className="num text-text">US$ {p.price.toFixed(2)}</div>
       <div className="num text-text-dim">{hhmm(p.ts)}</div>
     </div>
@@ -31,7 +32,7 @@ export function AdrChart() {
 
   // Color por variación del día (vs cierre previo), como Google.
   const down = changePct != null && changePct < 0;
-  const color = down ? "#ef4444" : "#22c55e";
+  const color = down ? "#c00000" : "#00803a";
 
   // Eje X = rueda completa (6.5 h); la línea se va completando hacia la derecha.
   const SESSION_MS = 23_400_000;
@@ -42,7 +43,7 @@ export function AdrChart() {
     <section className="panel">
       <div className="panel-title">
         <span>ADR GGAL · intradía</span>
-        <span className="text-text-dim font-normal normal-case tracking-normal">
+        <span className="font-normal text-text-dim">
           rueda actual · tiempo real
         </span>
       </div>
@@ -56,25 +57,26 @@ export function AdrChart() {
             <AreaChart data={points} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="adrGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="0%" stopColor={color} stopOpacity={0.18} />
                   <stop offset="100%" stopColor={color} stopOpacity={0} />
                 </linearGradient>
               </defs>
+              <CartesianGrid stroke="#d9d9d9" />
               <XAxis
                 dataKey="ts"
                 type="number"
                 domain={[firstTs, endTs]}
                 allowDataOverflow
                 tickFormatter={hhmm}
-                tick={{ fill: "#5a6571", fontSize: 11 }}
-                stroke="#1f2a36"
+                tick={{ fill: "#000000", fontSize: 13 }}
+                stroke="#000000"
                 minTickGap={40}
               />
               <YAxis
                 domain={["auto", "auto"]}
                 tickFormatter={(v) => (v as number).toFixed(2)}
-                tick={{ fill: "#5a6571", fontSize: 11 }}
-                stroke="#1f2a36"
+                tick={{ fill: "#000000", fontSize: 13 }}
+                stroke="#000000"
                 width={46}
               />
               <Tooltip content={<ChartTooltip />} />

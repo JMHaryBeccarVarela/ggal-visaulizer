@@ -12,10 +12,25 @@ export function tnaFromPrice(
   return (price / spot - 1) * (DAYS_BASIS / days);
 }
 
+// Cartel de arbitraje contra la TNA teórica (cost of carry con la caución).
+export function signalText(signal: "buy" | "sell" | null | undefined): string | null {
+  if (signal === "sell") return "VENDER FUTURO";
+  if (signal === "buy") return "COMPRAR FUTURO";
+  return null;
+}
+
 // Color del spread de puntas (en pesos): <=10 verde, >10 y <=15 amarillo, >15 rojo.
 export function spreadColor(s: number | null | undefined): string {
-  if (s == null || !isFinite(s)) return "#5a6571";
-  if (s <= 10) return "#22c55e";
-  if (s <= 15) return "#fbbf24";
-  return "#ef4444";
+  if (s == null || !isFinite(s)) return "#595959";
+  if (s <= 10) return "#006100";
+  if (s <= 15) return "#9c5700";
+  return "#9c0006";
+}
+
+// Igual que spreadColor, pero como relleno de celda (formato condicional).
+export function spreadClass(s: number | null | undefined): string {
+  if (s == null || !isFinite(s)) return "";
+  if (s <= 10) return "good";
+  if (s <= 15) return "warn";
+  return "bad";
 }

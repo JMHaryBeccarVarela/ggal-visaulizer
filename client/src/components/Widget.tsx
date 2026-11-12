@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useMarket } from "../store/market";
-import { tnaFromPrice, spreadColor } from "../lib/rates";
+import { tnaFromPrice, spreadClass, signalText } from "../lib/rates";
 import { sessionPoints, type ChartPoint } from "../lib/bars";
 import { fmtArs, fmtUsd, fmtSignedPct, fmtPct, fmtPrice, fmtNum, fmtInt } from "../lib/format";
 
@@ -20,7 +20,7 @@ function Spark({ points, down }: { points: ChartPoint[]; down: boolean }) {
   const x = (ts: number) => ((ts - firstTs) / span) * W;
   const y = (v: number) => H - 2 - ((v - min) / range) * (H - 4);
   const line = points.map((p) => `${x(p.ts).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
-  const color = down ? "#dc2626" : "#16a34a";
+  const color = down ? "#c00000" : "#00803a";
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -57,28 +57,27 @@ export function Widget() {
   const spotRef = snapshot?.spot?.ref ?? null;
   const futures = snapshot?.futures ?? [];
   const live = feedEnabled && wsConnected;
-  const up = (adr?.changePct ?? 0) >= 0;
-  const localUp = (local?.changePct ?? 0) >= 0;
 
-  // Al moverse el precio del ADR, glow difuminado de todo el widget: verde si
-  // sube / rojo si baja, con intensidad según el tamaño del movimiento
-  // (>20c fuerte, >10c medio, <=10c suave).
+  // Al moverse el precio en pesos de la acción (spot BYMA), todo el widget se
+  // tiñe: verde si sube / rojo si baja, con el tono según el tamaño del
+  // movimiento (>0,30% fuerte, >0,15% medio, resto suave).
   const adrLast = adr?.last ?? null;
+  const spotLast = local?.last ?? null;
   const prev = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const flashTimer = useRef<number | null>(null);
   useEffect(() => {
-    if (adrLast == null || !isFinite(adrLast)) return;
+    if (spotLast == null || !isFinite(spotLast)) return;
     const p = prev.current;
-    if (p != null && adrLast !== p) {
+    if (p != null && spotLast !== p) {
       // ownerDocument.body = el body de la ventana flotante (no el de la página).
       const b = rootRef.current?.ownerDocument?.body;
       if (b) {
         // Tono según la magnitud del movimiento (suave / medio / fuerte).
-        const abs = Math.abs(adrLast - p);
-        const color = adrLast > p
-          ? abs > 0.2 ? "#16a34a" : abs > 0.1 ? "#4ade80" : "#bbf7d0"
-          : abs > 0.2 ? "#dc2626" : abs > 0.1 ? "#f87171" : "#fecaca";
+        const abs = Math.abs(spotLast - p) / p;
+        const color = spotLast > p
+          ? abs > 0.003 ? "#00b050" : abs > 0.0015 ? "#92d050" : "#c6efce"
+          : abs > 0.003 ? "#ff0000" : abs > 0.0015 ? "#ff7c80" : "#ffc7ce";
         if (flashTimer.current != null) window.clearTimeout(flashTimer.current);
         b.style.transition = "none";
         b.style.background = color;
@@ -90,110 +89,130 @@ export function Widget() {
         }, 350);
       }
     }
-    prev.current = adrLast;
-  }, [adrLast]);
+    prev.current = spotLast;
+  }, [spotLast]);
 
   // Vencimiento más cercano: TNA de bid/último/ask, precios, spread y volumen.
   const nearest = futures[0] ?? null;
   const rest = futures.slice(1);
   const sref = nearest ? nearest.spotRef ?? spotRef : spotRef;
   const tBid = nearest ? tnaFromPrice(nearest.bid, sref, nearest.daysToMaturity) : null;
-  const tLast = nearest ? tnaFromPrice(nearest.last, sref, nearest.daysToMaturity) : null;
+  // TNA del último operado: contra el spot del instante de la operación (server).
+  const tLast = nearest?.tnaLast ?? null;
+  const sig = signalText(nearest?.signal);
   const tAsk = nearest ? tnaFromPrice(nearest.ask, sref, nearest.daysToMaturity) : null;
   const spread =
     nearest && nearest.ask != null && nearest.bid != null ? nearest.ask - nearest.bid : null;
 
+  const chgClass = (v: number | null | undefined) =>
+    v == null || v === 0 ? "" : v > 0 ? "good" : "bad";
+
   return (
     <div className="w" ref={rootRef}>
-      <div className="hdr">
-        <span className="ttl">GGAL</span>
-        <span className={`dot ${live ? "on" : "off"}`} />
-      </div>
+      <table>
+        <tbody>
+          <tr>
+            <td className="l">
+              GGAL {spot?.used ?? ""}
+              <span className={`dot ${live ? "on" : ""}`} />
+            </td>
+            <td className="big">{fmtArs(local?.last ?? null)}</td>
+            <td className={`mid ${chgClass(local?.changePct)}`}>
+              {local?.changePct != null ? fmtSignedPct(local.changePct) : "—"}
+            </td>
+          </tr>
+          <tr>
+            <td className="l">ADR</td>
+            <td>{fmtUsd(adr?.last ?? null)}</td>
+            <td className={chgClass(adr?.changePct)}>
+              {adr?.changePct != null ? fmtSignedPct(adr.changePct) : "—"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <div className="local">
-        <span className="lbl">BYMA {spot?.used ?? ""}</span>
-        <span className="px">{fmtArs(local?.last ?? null)}</span>
-        <span className={`chg ${localUp ? "up" : "dn"}`}>
-          {local?.changePct != null ? fmtSignedPct(local.changePct) : "—"}
-        </span>
+      <div className="spark">
+        <Spark points={sessionPoints(bars, adrLast)} down={(adr?.changePct ?? 0) < 0} />
       </div>
-
-      <div className="adr">
-        <span className="lbl">ADR</span>
-        <span className="px">{fmtUsd(adr?.last ?? null)}</span>
-        <span className={`chg ${up ? "up" : "dn"}`}>
-          {adr?.changePct != null ? fmtSignedPct(adr.changePct) : "—"}
-        </span>
-      </div>
-
-      <Spark points={sessionPoints(bars, adrLast)} down={(adr?.changePct ?? 0) < 0} />
 
       {nearest && (
-        <div className="near">
-          <div className="near-hdr">
-            <span>{nearest.label}</span>
-            <span className="days">
-              {nearest.daysToMaturity != null ? `${nearest.daysToMaturity}d` : ""}
-            </span>
-          </div>
-          <div className="g3">
-            <div className="tcol">
-              <div className="tl">TNA bid</div>
-              <div className="tv bid">{tBid != null ? fmtPct(tBid) : "—"}</div>
-            </div>
-            <div className="tcol">
-              <div className="tl">TNA últ</div>
-              <div className="tv last">{tLast != null ? fmtPct(tLast) : "—"}</div>
-            </div>
-            <div className="tcol">
-              <div className="tl">TNA ask</div>
-              <div className="tv ask">{tAsk != null ? fmtPct(tAsk) : "—"}</div>
-            </div>
-          </div>
-          <div className="g3">
-            <div className="pv">{fmtNum(nearest.bid)}</div>
-            <div className="pv">{fmtNum(nearest.last)}</div>
-            <div className="pv">{fmtNum(nearest.ask)}</div>
-          </div>
-          <div className="near-foot">
-            <span>
-              Spread{" "}
-              <b style={{ color: spreadColor(spread) }}>
+        <table>
+          <thead>
+            <tr>
+              <th>
+                {nearest.label}
+                {nearest.daysToMaturity != null ? ` · ${nearest.daysToMaturity}d` : ""}
+              </th>
+              <th>Bid</th>
+              <th>Últ.</th>
+              <th>Ask</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sig && (
+              <tr>
+                <td colSpan={4} className={`sig ${nearest.signal === "sell" ? "bad" : "good"}`}>
+                  {sig}
+                  {nearest.signalEdge != null ? ` (${fmtSignedPct(nearest.signalEdge)})` : ""}
+                </td>
+              </tr>
+            )}
+            <tr>
+              <td className="l">TNA</td>
+              <td className="b">{tBid != null ? fmtPct(tBid) : "—"}</td>
+              <td className="b">{tLast != null ? fmtPct(tLast) : "—"}</td>
+              <td className="b">{tAsk != null ? fmtPct(tAsk) : "—"}</td>
+            </tr>
+            <tr>
+              <td className="l">Precio</td>
+              <td>{fmtNum(nearest.bid)}</td>
+              <td>{fmtNum(nearest.last)}</td>
+              <td>{fmtNum(nearest.ask)}</td>
+            </tr>
+            <tr>
+              <td className="l">Teórico</td>
+              <td className="b">{nearest.tnaTheo != null ? fmtPct(nearest.tnaTheo) : "—"}</td>
+              <td colSpan={2}>{fmtNum(nearest.theoPrice)}</td>
+            </tr>
+            <tr>
+              <td className="l">Spread</td>
+              <td className={spreadClass(spread)}>
                 {spread != null ? fmtPrice(spread, 2) : "—"}
-              </b>
-            </span>
-            <span>
-              Vol <b>{fmtInt(nearest.volume)}</b>
-            </span>
-          </div>
-        </div>
+              </td>
+              <td className="l">Vol.</td>
+              <td>{fmtInt(nearest.volume)}</td>
+            </tr>
+          </tbody>
+        </table>
       )}
 
-      <div className="futs">
-        {futures.length === 0 ? (
-          <div className="empty">{feedEnabled ? "esperando datos…" : "datos en pausa"}</div>
-        ) : rest.length === 0 ? null : (
-          <>
-            <div className="frow fhead">
-              <span>Futuro</span>
-              <span>TNA bid</span>
-              <span>TNA ask</span>
-            </div>
+      {futures.length === 0 ? (
+        <div className="empty">{feedEnabled ? "esperando datos…" : "datos en pausa"}</div>
+      ) : rest.length === 0 ? null : (
+        <table>
+          <thead>
+            <tr>
+              <th>Futuro</th>
+              <th>TNA bid</th>
+              <th>TNA ask</th>
+            </tr>
+          </thead>
+          <tbody>
             {rest.map((f) => {
               const sr = f.spotRef ?? spotRef;
               const b = tnaFromPrice(f.bid, sr, f.daysToMaturity);
               const a = tnaFromPrice(f.ask, sr, f.daysToMaturity);
               return (
-                <div className="frow" key={f.symbol}>
-                  <span className="fl">{f.label}</span>
-                  <span className="tb">{b != null ? fmtPct(b) : "—"}</span>
-                  <span className="ta">{a != null ? fmtPct(a) : "—"}</span>
-                </div>
+                <tr key={f.symbol}>
+                  <td className="l">{f.label}</td>
+                  <td>{b != null ? fmtPct(b) : "—"}</td>
+                  <td>{a != null ? fmtPct(a) : "—"}</td>
+                </tr>
               );
             })}
-          </>
-        )}
-      </div>
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

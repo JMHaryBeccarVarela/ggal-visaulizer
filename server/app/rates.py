@@ -61,3 +61,16 @@ def compute_rates(future: float | None, spot: float | None, days: int | None) ->
         tna=tna,
         tea=tea,
     )
+
+
+def theoretical_growth(
+    caucion_tna: float | None, caucion_days: int | None, days: int | None
+) -> float | None:
+    """Cost of carry: factor F/S teórico a `days` días renovando una caución de
+    `caucion_days` días a tasa `caucion_tna` (fracción, base 365)."""
+    if caucion_tna is None or not caucion_days or days is None or days <= 0:
+        return None
+    period = 1.0 + caucion_tna * caucion_days / DAYS_BASIS
+    if period <= 0:
+        return None
+    return period ** (days / caucion_days)

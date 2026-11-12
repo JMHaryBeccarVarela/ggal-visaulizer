@@ -7,8 +7,8 @@ import { useMarket } from "../store/market";
 // Soportado en Chrome/Edge (Chromium 116+). En otros navegadores no existe.
 //
 // Nota: la barra de título de la ventana (origen + botón cerrar) la dibuja el
-// navegador y NO se puede ocultar desde la web. El borde blanco redondeado se
-// aplica al contenido.
+// navegador y NO se puede ocultar desde la web. El contenido usa la misma
+// estética de planilla de Excel que la página.
 
 const WIDGET_CSS = `
   :root { color-scheme: light; }
@@ -16,50 +16,30 @@ const WIDGET_CSS = `
   html, body { background: #ffffff; }
   body {
     height: 100vh;
-    border: 2px solid #cbd5e1;
-    border-radius: 22px;
-    padding: 14px 18px;
-    color: #0f172a;
-    font-family: 'Trebuchet MS', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    padding: 8px;
+    color: #000000;
+    font-family: Calibri, Carlito, 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
     font-variant-numeric: tabular-nums;
     user-select: none;
     overflow: hidden;
   }
-  .w { display: flex; flex-direction: column; gap: 10px; }
-  .hdr { display: flex; align-items: center; justify-content: space-between; }
-  .ttl { font-weight: 700; color: #d97706; letter-spacing: .06em; font-size: 15px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; }
-  .dot.on { background: #16a34a; box-shadow: 0 0 7px #16a34a; }
-  .local { display: flex; align-items: baseline; gap: 8px; }
-  .local .lbl { color: #64748b; font-size: 11px; }
-  .local .px { font-size: 31px; font-weight: 700; letter-spacing: -0.4px; }
-  .local .chg { margin-left: auto; font-size: 19px; font-weight: 700; }
-  .adr { display: flex; align-items: baseline; gap: 6px; }
-  .adr .lbl { color: #94a3b8; font-size: 10px; }
-  .adr .px { font-size: 16px; font-weight: 600; color: #475569; }
-  .adr .chg { margin-left: auto; font-size: 13px; font-weight: 600; }
-  .chg.up { color: #16a34a; } .chg.dn { color: #dc2626; }
-  .near {
-    background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.45);
-    border-radius: 8px; padding: 7px 10px; display: flex; flex-direction: column; gap: 6px;
-  }
-  .near-hdr { display: flex; justify-content: space-between; align-items: baseline; color: #0f172a; font-weight: 700; font-size: 13px; }
-  .near-hdr .days { color: #64748b; font-weight: 400; font-size: 11px; }
-  .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
-  .pv { text-align: center; color: #64748b; font-size: 11px; }
-  .tcol { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-  .tl { color: #94a3b8; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; }
-  .tv { font-weight: 700; font-size: 14px; }
-  .tv.bid { color: #16a34a; } .tv.last { color: #d97706; } .tv.ask { color: #dc2626; }
-  .near-foot { display: flex; justify-content: space-between; border-top: 1px solid rgba(245,158,11,.4); padding-top: 5px; font-size: 11px; color: #64748b; }
-  .near-foot b { color: #0f172a; font-weight: 700; }
-  .futs { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-  .frow { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; font-size: 13px; align-items: baseline; }
-  .fhead { color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
-  .fl { color: #0f172a; font-weight: 600; }
-  .tb { color: #16a34a; text-align: right; min-width: 56px; }
-  .ta { color: #dc2626; text-align: right; min-width: 56px; }
-  .empty { color: #94a3b8; font-size: 12px; padding: 4px 0; }
+  .w { display: flex; flex-direction: column; gap: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #000000; padding: 1px 6px; text-align: right; white-space: nowrap; }
+  th { background: #d9d9d9; font-weight: 700; text-align: center; }
+  td.l { text-align: left; font-weight: 700; background: #f2f2f2; }
+  td.b { font-weight: 700; }
+  td.big { font-size: 26px; font-weight: 700; line-height: 1.15; }
+  td.mid { font-size: 17px; font-weight: 700; }
+  td.sig { text-align: center; font-weight: 700; }
+  .good { background: #c6efce; color: #006100; }
+  .bad { background: #ffc7ce; color: #9c0006; }
+  .warn { background: #ffeb9c; color: #9c5700; }
+  .dot { display: inline-block; width: 9px; height: 9px; margin-left: 6px; border: 1px solid #000000; background: #ffffff; }
+  .dot.on { background: #00b050; }
+  .spark { border: 1px solid #000000; }
+  .empty { color: #595959; }
 `;
 
 let pipWin: Window | null = null;
@@ -82,8 +62,14 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 340, height: 345 });
+  const win: Window = await dpip.requestWindow({ width: 340, height: 310 });
   pipWin = win;
+
+  // Carlito = equivalente métrico de Calibri, para equipos sin Office.
+  const font = win.document.createElement("link");
+  font.rel = "stylesheet";
+  font.href = "https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap";
+  win.document.head.appendChild(font);
 
   const style = win.document.createElement("style");
   style.textContent = WIDGET_CSS;

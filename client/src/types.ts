@@ -45,6 +45,37 @@ export interface Rates {
 export interface FutureQuote extends LocalQuote {
   rates: Rates;
   spotRef: number | null;
+  /** Spot en el instante de la última operación del futuro (null si no se vio en vivo). */
+  tradeSpot: number | null;
+  tradeTs: number | null;
+  tnaLast: number | null; // último operado vs tradeSpot
+  tnaBid: number | null;
+  tnaAsk: number | null;
+  tnaTheo: number | null; // cost of carry con la caución
+  theoPrice: number | null;
+  signal: "buy" | "sell" | null;
+  signalEdge: number | null; // diferencia de TNA a favor (fracción)
+}
+
+/** CCL por bonos vs CCL por ADR, y valor teórico de la acción. */
+export interface FxBlock {
+  bondArs: string;
+  bondUsd: string;
+  settlement: string;
+  bondArsLast: number | null;
+  bondUsdLast: number | null;
+  cclBond: number | null;
+  cclAdr: number | null;
+  gapPct: number | null; // cclAdr / cclBond - 1
+  theoStock: number | null; // ADR × cclBond ÷ ratio
+  theoDiff: number | null; // acción real − teórica
+  theoDiffPct: number | null;
+}
+
+export interface CaucionBlock {
+  days: number | null;
+  tna: number | null; // fracción
+  threshold: number; // umbral del cartel (fracción de TNA)
 }
 
 /** Cotización del ADR (Alpaca). */
@@ -78,6 +109,8 @@ export interface DashboardSnapshot {
   spot: SpotBlock;
   futures: FutureQuote[];
   ccl: number | null;
+  fx?: FxBlock;
+  caucion?: CaucionBlock;
   adrRatio: number;
   ts: number;
 }

@@ -6,9 +6,9 @@ import { fmtTime } from "../lib/format";
 import type { ConnState } from "../types";
 
 function Dot({ on, warn }: { on: boolean; warn?: boolean }) {
-  const color = on ? "bg-bull" : warn ? "bg-accent" : "bg-text-dim";
+  const color = on ? "bg-[#00b050]" : warn ? "bg-[#ffc000]" : "bg-white";
   return (
-    <span className={`inline-block h-2 w-2 rounded-full ${color} ${on ? "animate-pulse" : ""}`} />
+    <span className={`inline-block h-2 w-2 border border-border ${color}`} />
   );
 }
 
@@ -24,10 +24,10 @@ function Badge({
   warn?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-bg-elev px-2.5 py-1">
+    <div className="-ml-px flex items-center gap-2 border border-border px-2 py-0.5">
       <Dot on={on} warn={warn} />
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-xs font-medium text-text">{state}</span>
+      <span className="font-bold">{label}</span>
+      <span>{state}</span>
     </div>
   );
 }
@@ -65,7 +65,7 @@ function FeedButton() {
       : "▶ Encender datos";
 
   const cls = feedEnabled
-    ? "btn border-bear/50 text-bear hover:bg-bear/10"
+    ? "btn bad"
     : "btn-accent";
 
   return (
@@ -116,14 +116,14 @@ export function Header() {
   const adr = status?.adrState ?? "disconnected";
 
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
+    <header className="sticky top-0 z-10 border-b border-border bg-bg">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-4 py-2">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-lg font-semibold text-text">
+            <h1 className="text-xl font-bold text-text">
               GGAL <span className="text-accent">· Tiempo real</span>
             </h1>
-            <p className="text-xs text-text-dim">
+            <p className="text-[13px] text-text-dim">
               ADR (NYSE) · Acción (BYMA) · Futuros (Rofex) · TNA / TEA implícita
             </p>
           </div>
@@ -133,7 +133,7 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center pl-px">
           <Badge
             label="BYMA/Rofex"
             state={market?.open ? "abierto" : "cerrado"}
@@ -152,10 +152,10 @@ export function Header() {
             on={adr === "connected"}
             warn={adr === "connecting" || adr === "authenticating"}
           />
-          <div className="flex items-center gap-2 rounded-md border border-border bg-bg-elev px-2.5 py-1">
+          <div className="-ml-px flex items-center gap-2 border border-border px-2 py-0.5">
             <Dot on={wsConnected} />
-            <span className="text-xs text-text-muted">Datos</span>
-            <span className="num text-xs text-text">{fmtTime(lastUpdate)}</span>
+            <span className="font-bold">Datos</span>
+            <span className="num">{fmtTime(lastUpdate)}</span>
           </div>
         </div>
       </div>

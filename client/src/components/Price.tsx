@@ -36,7 +36,7 @@ export function Price({
   }, [value]);
 
   return (
-    <span className={`num rounded px-0.5 ${flash} ${className}`}>
+    <span className={`num ${flash} ${className}`}>
       {render(value, currency, decimals)}
     </span>
   );

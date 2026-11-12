@@ -88,10 +88,29 @@ class PrimaryClient:
         futures: list[dict] = []
         eq_by_term: dict[str, dict] = {}  # 'ci' | '24hs' | '48hs' -> instrument
 
+        # Bonos para el CCL ("MERV - XMEV - AL30 - 24hs") y cauciones en pesos
+        # ("MERV - XMEV - PESOS - 7D").
+        term = re.escape(config.bond_settlement)
+        bond_ars_re = re.compile(rf"-\s*{re.escape(config.bond_ars)}\s*-\s*{term}\s*$", re.IGNORECASE)
+        bond_usd_re = re.compile(rf"-\s*{re.escape(config.bond_usd)}\s*-\s*{term}\s*$", re.IGNORECASE)
+        cau_re = re.compile(r"-\s*PESOS\s*-\s*(\d+)D\s*$", re.IGNORECASE)
+        aux: dict[str, dict] = {}         # 'bondArs' | 'bondUsd' | 'caucion' -> instrument
+        cauciones: dict[int, dict] = {}   # plazo en días -> instrument
+
         for i in instruments:
             iid = i.get("instrumentId", {})
             sym = iid.get("symbol", "")
             if not sym:
+                continue
+            if bond_ars_re.search(sym):
+                aux["bondArs"] = i
+                continue
+            if bond_usd_re.search(sym):
+                aux["bondUsd"] = i
+                continue
+            c = cau_re.search(sym)
+            if c:
+                cauciones[int(c.group(1))] = i
                 continue
             if fut_re.match(sym):
                 mid = iid.get("marketId")
@@ -110,9 +129,15 @@ class PrimaryClient:
         equity_ci = eq_by_term.get("ci")
         equity_t24 = eq_by_term.get("24hs")
 
-        store.set_instruments(futures, equity_ci, equity_t24)
+        # Caución: el plazo configurado o, si ese día no cotiza, el más cercano.
+        caucion_days = None
+        if cauciones:
+            caucion_days = min(cauciones, key=lambda d: abs(d - config.caucion_days))
+            aux["caucion"] = cauciones[caucion_days]
+
+        store.set_instruments(futures, equity_ci, equity_t24, aux, caucion_days)
         self._symbols = [f["instrumentId"]["symbol"] for f in futures]
-        for inst in (equity_ci, equity_t24):
+        for inst in (equity_ci, equity_t24, *aux.values()):
             if inst:
                 self._symbols.append(inst["instrumentId"]["symbol"])
 
@@ -123,6 +148,10 @@ class PrimaryClient:
             [f["instrumentId"]["symbol"] for f in futures],
             equity_ci["instrumentId"]["symbol"] if equity_ci else "—",
             equity_t24["instrumentId"]["symbol"] if equity_t24 else "—",
+        )
+        log.info(
+            "Auxiliares: %s",
+            {k: v["instrumentId"]["symbol"] for k, v in aux.items()},
         )
         if not futures:
             log.warning(
