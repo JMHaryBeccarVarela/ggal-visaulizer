@@ -19,7 +19,6 @@ import type {
   AssetSnapshot,
   CaucionBlock,
   ExtQuote,
-  FutureQuote,
   FxBlock,
   LocalQuote,
 } from "./types";
@@ -326,8 +325,7 @@ function FuturesTable({
   const carry = asset.carry;
   const cols = carry ? 17 : 14;
   // El semáforo del spread está calibrado para acciones (ticks de $1).
-  const spreadCls = (f: FutureQuote, s: number | null) =>
-    asset.kind === "adr" ? spreadClass(s) : "";
+  const spreadCls = (s: number | null) => (asset.kind === "adr" ? spreadClass(s) : "");
   return (
     <div className="overflow-x-auto">
       <table className="xl">
@@ -390,7 +388,7 @@ function FuturesTable({
                   <td>
                     <Price value={f.ask} />
                   </td>
-                  <td className={spreadCls(f, spread)}>{fmtPrice(spread)}</td>
+                  <td className={spreadCls(spread)}>{fmtPrice(spread)}</td>
                   <td>{fmtPct(f.tnaBid)}</td>
                   <td className="font-bold">{fmtPct(f.tnaLast)}</td>
                   <td>{fmtPct(f.tnaAsk)}</td>
