@@ -1,4 +1,4 @@
-export type Role = "future" | "ci" | "t24";
+export type Role = "future" | "ci" | "t24" | "index";
 
 export type ConnState =
   | "disconnected"
@@ -8,7 +8,10 @@ export type ConnState =
   | "idle"
   | "disabled";
 
-/** Cotización de un instrumento local (acción BYMA o futuro Rofex). */
+/** Tipo de activo: de dónde sale el spot de referencia. */
+export type AssetKind = "adr" | "index" | "ext" | "rate";
+
+/** Cotización de un instrumento local (acción BYMA, índice o futuro Rofex). */
 export interface LocalQuote {
   symbol: string;
   role: Role;
@@ -55,31 +58,14 @@ export interface FutureQuote extends LocalQuote {
   theoPrice: number | null;
   signal: "buy" | "sell" | null;
   signalEdge: number | null; // diferencia de TNA a favor (fracción)
+  /** Solo futuros de tasa (CAUC): diferencia en puntos contra la caución. */
+  bidDiff?: number | null;
+  lastDiff?: number | null;
+  askDiff?: number | null;
 }
 
-/** CCL por bonos vs CCL por ADR, y valor teórico de la acción. */
-export interface FxBlock {
-  bondArs: string;
-  bondUsd: string;
-  settlement: string;
-  bondArsLast: number | null;
-  bondUsdLast: number | null;
-  cclBond: number | null;
-  cclAdr: number | null;
-  gapPct: number | null; // cclAdr / cclBond - 1
-  theoStock: number | null; // ADR × cclBond ÷ ratio
-  theoDiff: number | null; // acción real − teórica
-  theoDiffPct: number | null;
-}
-
-export interface CaucionBlock {
-  days: number | null;
-  tna: number | null; // fracción
-  threshold: number; // umbral del cartel (fracción de TNA)
-}
-
-/** Cotización del ADR (Alpaca). */
-export interface AdrQuote {
+/** Cotización externa (Finnhub): ADR, BTC/USD, ETF GLD. */
+export interface ExtQuote {
   symbol: string;
   last: number | null;
   bid: number | null;
@@ -100,18 +86,58 @@ export interface AdrQuote {
 export interface SpotBlock {
   ci: LocalQuote | null;
   t24: LocalQuote | null;
-  used: string; // "24hs" | "CI"
+  index: LocalQuote | null;
+  used: string; // "24hs" | "CI" | "índice Rofex" | ...
   ref: number | null;
+  stale: boolean; // solo hay cierre anterior, sin valor en vivo
+  changePct: number | null;
+}
+
+/** Todo lo de un activo: spot, referencia externa, futuros y dólar implícito. */
+export interface AssetSnapshot {
+  id: string;
+  label: string;
+  kind: AssetKind;
+  currency: "ARS" | "USD";
+  carry: boolean; // tiene teórico por caución + cartel
+  ext: ExtQuote | null;
+  extLabel: string | null;
+  extScale: number;
+  chart: string | null; // símbolo del gráfico intradía
+  ratio: number; // acciones locales por ADR
+  spot: SpotBlock;
+  futures: FutureQuote[];
+  ccl: number | null; // dólar implícito vs la referencia en USD
+  gapPct: number | null; // ccl / cclBond - 1
+  theoSpot: number | null; // referencia USD × CCL bono ÷ ratio
+  theoDiff: number | null; // spot real − teórico
+  theoDiffPct: number | null;
+  signal: "buy" | "sell" | null;
+}
+
+/** CCL por bonos. */
+export interface FxBlock {
+  bondArs: string;
+  bondUsd: string;
+  settlement: string;
+  bondArsLast: number | null;
+  bondUsdLast: number | null;
+  cclBond: number | null;
+}
+
+export interface CaucionBlock {
+  days: number | null;
+  tna: number | null; // fracción
+  shortDays: number | null;
+  shortTna: number | null;
+  threshold: number; // umbral del cartel (fracción de TNA)
 }
 
 export interface DashboardSnapshot {
-  adr: AdrQuote | null;
-  spot: SpotBlock;
-  futures: FutureQuote[];
-  ccl: number | null;
-  fx?: FxBlock;
-  caucion?: CaucionBlock;
-  adrRatio: number;
+  assets: Record<string, AssetSnapshot>;
+  order: string[];
+  fx: FxBlock;
+  caucion: CaucionBlock;
   ts: number;
 }
 

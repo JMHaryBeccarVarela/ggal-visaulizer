@@ -51,6 +51,8 @@ class Config:
 
     # ---- Tasa teórica (cost of carry) y CCL por bonos ----
     caucion_days: int         # plazo de la caución en pesos usada como libre de riesgo
+    caucion_short_days: int   # caución corta: referencia de los futuros de tasa (CAUC)
+    gld_oz_factor: float      # acciones de GLD por onza de oro (spot de ORO = GLD × factor)
     signal_threshold: float   # diferencia mínima de TNA (fracción) para el cartel
     bond_ars: str             # bono en pesos para el CCL, p.ej. "AL30"
     bond_usd: str             # misma especie en dólar cable, p.ej. "AL30C"
@@ -92,6 +94,8 @@ config = Config(
     spot_settlement=_env("GGAL_SPOT_SETTLEMENT", "24hs"),
     max_futures=int(_env("GGAL_MAX_FUTURES", "2")),
     caucion_days=int(_env("CAUCION_DAYS", "7")),
+    caucion_short_days=int(_env("CAUCION_SHORT_DAYS", "1")),
+    gld_oz_factor=float(_env("ORO_GLD_FACTOR", "10.91")),
     signal_threshold=float(_env("GGAL_SIGNAL_THRESHOLD", "0.02")),
     bond_ars=_env("CCL_BOND_ARS", "AL30"),
     bond_usd=_env("CCL_BOND_USD", "AL30C"),

@@ -92,6 +92,45 @@
   }
 }
 
+/* Pestañas de activos (como las hojas de Excel) */
+.tab {
+  border: 1px solid #000000;
+  margin-left: -1px;
+  padding: 2px 14px;
+  background: #f2f2f2;
+  font-size: 15px;
+}
+.tab:hover {
+  background: #d9d9d9;
+}
+.tab.sel {
+  background: #217346;
+  color: #ffffff;
+  font-weight: 700;
+}
+.tab.sig-buy {
+  background: #c6efce;
+  color: #006100;
+  font-weight: 700;
+  animation: tab-blink 1s steps(2, start) infinite;
+}
+.tab.sig-sell {
+  background: #ffc7ce;
+  color: #9c0006;
+  font-weight: 700;
+  animation: tab-blink 1s steps(2, start) infinite;
+}
+.tab.sel.sig-buy,
+.tab.sel.sig-sell {
+  outline: 2px solid #000000;
+  outline-offset: -3px;
+}
+@keyframes tab-blink {
+  50% {
+    filter: brightness(0.85);
+  }
+}
+
 /* Flash de celda cuando cambia una cotización */
 @keyframes flash-bull {
   0% {

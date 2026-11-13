@@ -25,12 +25,23 @@ const WIDGET_CSS = `
     overflow: hidden;
   }
   .w { display: flex; flex-direction: column; gap: 6px; }
+  .tabs { display: flex; padding-left: 1px; }
+  .tab {
+    flex: 1; margin-left: -1px; padding: 1px 0; border: 1px solid #000000;
+    background: #f2f2f2; color: #000000; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .tab.sel { background: #217346; color: #ffffff; font-weight: 700; }
+  .tab.sig-buy { background: #00b050; color: #ffffff; font-weight: 700; animation: blink 1s steps(2, start) infinite; }
+  .tab.sig-sell { background: #ff0000; color: #ffffff; font-weight: 700; animation: blink 1s steps(2, start) infinite; }
+  .tab.sel.sig-buy, .tab.sel.sig-sell { outline: 2px solid #000000; outline-offset: -3px; }
+  @keyframes blink { 50% { opacity: 0.45; } }
   table { width: 100%; border-collapse: collapse; }
   th, td { border: 1px solid #000000; padding: 1px 6px; text-align: right; white-space: nowrap; }
   th { background: #d9d9d9; font-weight: 700; text-align: center; }
   td.l { text-align: left; font-weight: 700; background: #f2f2f2; }
   td.b { font-weight: 700; }
   td.big { font-size: 26px; font-weight: 700; line-height: 1.15; }
+  td.big.long { font-size: 19px; }
   td.mid { font-size: 17px; font-weight: 700; }
   td.c { text-align: center; }
   td.theo { font-size: 11px; line-height: 1.15; color: #7f7f7f; text-align: center; }
@@ -65,7 +76,7 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 380, height: 265 });
+  const win: Window = await dpip.requestWindow({ width: 380, height: 295 });
   pipWin = win;
 
   // Carlito = equivalente métrico de Calibri, para equipos sin Office.

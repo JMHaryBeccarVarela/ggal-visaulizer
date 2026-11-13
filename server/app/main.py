@@ -24,6 +24,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .alpaca import alpaca
+from .assets import CHART_SYMBOLS
 from .finnhub import finnhub
 from .config import config
 from .market_hours import market_status, us_market_status
@@ -180,8 +181,11 @@ async def instruments():
 
 
 @app.get("/api/adr/bars")
-async def adr_bars():
-    return await asyncio.to_thread(alpaca.fetch_bars)
+async def adr_bars(symbol: str | None = None):
+    """Barras intradía del ADR / referencia de un activo (solo símbolos conocidos)."""
+    if symbol is not None and symbol not in CHART_SYMBOLS:
+        return {"bars": [], "symbol": symbol}
+    return await asyncio.to_thread(alpaca.fetch_bars, symbol)
 
 
 @app.get("/api/snapshot")

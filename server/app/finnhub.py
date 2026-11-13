@@ -1,5 +1,5 @@
 """
-Cliente de Finnhub para el ADR de GGAL (quote consolidado).
+Cliente de Finnhub para los ADRs y las referencias externas (assets.py).
 
 Finnhub (free) da el quote consolidado — precio, cierre previo, OHLC = igual a
 TradingView/CNBC — con precio en tiempo real por un WebSocket de trades.
@@ -17,6 +17,7 @@ import time
 import requests
 import websocket  # websocket-client
 
+from .assets import EXT_SYMBOLS
 from .config import config
 from .store import store
 
@@ -48,7 +49,7 @@ class FinnhubClient:
             return
         self._stop = False
         self._state = "disconnected"
-        self._fetch_quote()  # seed inicial
+        self._fetch_quotes()  # seed inicial
         self._poll_thread = threading.Thread(target=self._poll, name="finnhub-poll", daemon=True)
         self._poll_thread.start()
         self._ws_thread = threading.Thread(target=self._run_ws, name="finnhub-ws", daemon=True)
@@ -65,11 +66,17 @@ class FinnhubClient:
             self._state = "idle"
 
     # ---------- REST quote ----------
-    def _fetch_quote(self) -> None:
+    def _fetch_quotes(self) -> None:
+        for symbol in EXT_SYMBOLS:
+            if self._stop:
+                break
+            self._fetch_quote(symbol)
+
+    def _fetch_quote(self, symbol: str) -> None:
         try:
             r = requests.get(
                 _QUOTE_URL,
-                params={"symbol": config.adr_symbol, "token": config.finnhub_key},
+                params={"symbol": symbol, "token": config.finnhub_key},
                 timeout=10,
             )
             r.raise_for_status()
@@ -77,7 +84,7 @@ class FinnhubClient:
             c = q.get("c")
             if not c:  # Finnhub devuelve 0 cuando no hay dato
                 return
-            store.update_adr({
+            store.update_ext(symbol, {
                 "last": c,
                 "prevClose": q.get("pc"),
                 "open": q.get("o"),
@@ -85,7 +92,7 @@ class FinnhubClient:
                 "low": q.get("l"),
             })
         except Exception:  # noqa: BLE001
-            log.exception("Fallo el quote de Finnhub")
+            log.exception("Fallo el quote de Finnhub (%s)", symbol)
 
     def _poll(self) -> None:
         # Refresca cierre previo / OHLC y hace de fallback del precio.
@@ -93,7 +100,7 @@ class FinnhubClient:
             time.sleep(12)
             if self._stop:
                 break
-            self._fetch_quote()
+            self._fetch_quotes()
 
     # ---------- WebSocket (trades en tiempo real) ----------
     def _run_ws(self) -> None:
@@ -120,8 +127,9 @@ class FinnhubClient:
 
     def _on_open(self, ws) -> None:
         self._state = "connected"
-        ws.send(json.dumps({"type": "subscribe", "symbol": config.adr_symbol}))
-        log.info("Finnhub suscripto a %s", config.adr_symbol)
+        for symbol in EXT_SYMBOLS:
+            ws.send(json.dumps({"type": "subscribe", "symbol": symbol}))
+        log.info("Finnhub suscripto a %s", EXT_SYMBOLS)
 
     def _on_message(self, ws, raw) -> None:
         try:
@@ -129,11 +137,14 @@ class FinnhubClient:
         except Exception:  # noqa: BLE001
             return
         if m.get("type") == "trade":
-            data = m.get("data") or []
-            if data:
-                p = data[-1].get("p")
-                if p is not None:
-                    store.update_adr({"last": p})
+            # Un mensaje puede traer varias operaciones de varios símbolos:
+            # queda la última de cada uno.
+            latest: dict[str, float] = {}
+            for t in m.get("data") or []:
+                if t.get("s") and t.get("p") is not None:
+                    latest[t["s"]] = t["p"]
+            for symbol, p in latest.items():
+                store.update_ext(symbol, {"last": p})
 
     def _on_error(self, ws, err) -> None:
         log.warning("Finnhub WS error: %s", err)

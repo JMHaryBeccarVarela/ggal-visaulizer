@@ -80,3 +80,15 @@ export function fmtMinutes(min: number): string {
   const d = Math.floor(h / 24);
   return `${d}d ${h % 24}h`;
 }
+
+/** Precio del spot según la moneda del activo; sin decimales si es muy grande. */
+export function fmtSpot(
+  n: number | null | undefined,
+  currency: "ARS" | "USD",
+  isRate = false,
+): string {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  if (isRate) return `${fmtPrice(n)}%`;
+  const body = fmtPrice(n, Math.abs(n) >= 100_000 ? 0 : 2);
+  return currency === "USD" ? `US$ ${body}` : `$ ${body}`;
+}

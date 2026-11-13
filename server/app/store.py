@@ -1,14 +1,15 @@
 """
-Store en memoria de market data (thread-safe).
+Store en memoria de market data (thread-safe), multi-activo.
 
 Combina dos fuentes:
-  - Primary (pyRofex): acción GGAL en BYMA (plazos CI y 24hs) y futuros GGAL.
-    Los callbacks llegan en un thread propio del websocket de pyRofex.
-  - Alpaca: ADR de GGAL (NYSE/NASDAQ). Llega en el thread del websocket de Alpaca.
+  - Primary (pyRofex): acciones en BYMA (CI y 24hs), índices y futuros de Rofex,
+    bonos para el CCL y cauciones. Los callbacks llegan en el thread del
+    websocket de pyRofex.
+  - Finnhub: ADRs y referencias externas (thread propio).
 
 FastAPI corre en el loop asyncio de uvicorn. Un lock protege las lecturas y
-escrituras entre esos threads. El server arma un snapshot computado (con
-TNA/TEA de cada futuro y el dólar implícito) y lo reparte por WebSocket.
+escrituras entre esos threads. El server arma un snapshot computado por activo
+(tasas implícitas, teórico por caución, cartel, CCL) y lo reparte por WebSocket.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import threading
 import time
 from typing import Any
 
+from .assets import ASSETS, Asset
 from .config import config
 from .market_hours import days_to_maturity
 from .rates import compute_rates, theoretical_growth
@@ -23,6 +25,8 @@ from .rates import compute_rates, theoretical_growth
 # Un "último operado" se toma como operación en vivo (y se le asocia el spot
 # del momento) solo si su timestamp es reciente; si no, es un dato viejo.
 _LIVE_TRADE_MS = 15_000
+
+_PRICE_KEYS = ("last", "bid", "ask", "open", "high", "low", "prevClose")
 
 
 def _num(v: Any) -> float | None:
@@ -32,7 +36,7 @@ def _num(v: Any) -> float | None:
 
 
 def _price_of(v: Any) -> float | None:
-    """CL/LA/SE pueden venir como número o como {'price':.., 'date':..}."""
+    """CL/LA/SE/IV pueden venir como número o como {'price':.., 'date':..}."""
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, dict):
@@ -41,9 +45,11 @@ def _price_of(v: Any) -> float | None:
     return None
 
 
-def _ref_price(summary: dict) -> float | None:
-    """Precio de referencia de un instrumento local: último → mid → settlement
+def _ref_price(summary: dict | None) -> float | None:
+    """Precio de referencia de un instrumento: último → mid → settlement
     → cierre previo."""
+    if not summary:
+        return None
     for key in ("last", "mid", "settlement", "prevClose"):
         v = summary.get(key)
         if isinstance(v, (int, float)):
@@ -55,17 +61,18 @@ class MarketStore:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._inst: dict[str, dict] = {}       # symbol -> instrument detail (Primary)
-        self._role: dict[str, str] = {}        # symbol -> "future" | "ci" | "t24"
+        self._role: dict[str, str] = {}        # symbol -> "future" | "ci" | "t24" | "index" | aux
+        self._owner: dict[str, str] = {}       # symbol de futuro -> id del activo
         self._md: dict[str, dict] = {}         # symbol -> marketData mergeado
         self._last_update: dict[str, float] = {}
-        self._future_order: list[str] = []     # símbolos de futuros ordenados por vto
-        self._ci_symbol: str | None = None
-        self._t24_symbol: str | None = None
-        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" | "caucion" -> symbol
+        # id del activo -> {"futures": [symbols], "ci": sym, "t24": sym, "index": sym}
+        self._assets: dict[str, dict] = {}
+        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" | "caucion" | "caucionShort" -> symbol
         self._caucion_days: int | None = None
+        self._caucion_short_days: int | None = None
         self._trade_spot: dict[str, dict] = {} # futuro -> {"spot", "ts"} al operarse
-        self._adr: dict[str, Any] = {}         # ADR (Alpaca) mergeado
-        self._adr_ts: float = 0.0
+        self._ext: dict[str, dict] = {}        # símbolo Finnhub -> campos mergeados
+        self._ext_ts: dict[str, float] = {}
         self._dirty = False
         self._feed_enabled = False
 
@@ -82,18 +89,20 @@ class MarketStore:
     # ---------- instrumentos (Primary) ----------
     def set_instruments(
         self,
-        futures: list[dict],
-        equity_ci: dict | None,
-        equity_t24: dict | None,
+        per_asset: dict[str, dict],
         aux: dict[str, dict] | None = None,
         caucion_days: int | None = None,
+        caucion_short_days: int | None = None,
     ) -> None:
+        """per_asset: id -> {"futures": [inst], "ci": inst, "t24": inst, "index": inst}."""
         with self._lock:
             self._inst = {}
             self._role = {}
-            self._future_order = []
+            self._owner = {}
+            self._assets = {}
             self._aux = {}
             self._caucion_days = caucion_days
+            self._caucion_short_days = caucion_short_days
 
             for role, inst in (aux or {}).items():
                 sym = inst["instrumentId"]["symbol"]
@@ -101,34 +110,26 @@ class MarketStore:
                 self._role[sym] = role
                 self._aux[role] = sym
 
-            for f in futures:
-                sym = f["instrumentId"]["symbol"]
-                self._inst[sym] = f
-                self._role[sym] = "future"
-                self._future_order.append(sym)
-
-            if equity_ci:
-                sym = equity_ci["instrumentId"]["symbol"]
-                self._inst[sym] = equity_ci
-                self._role[sym] = "ci"
-                self._ci_symbol = sym
-            if equity_t24:
-                sym = equity_t24["instrumentId"]["symbol"]
-                self._inst[sym] = equity_t24
-                self._role[sym] = "t24"
-                self._t24_symbol = sym
-
-    def subscribed_symbols(self) -> list[str]:
-        with self._lock:
-            return list(self._inst.keys())
+            for asset_id, found in per_asset.items():
+                entry: dict = {"futures": [], "ci": None, "t24": None, "index": None}
+                for f in found.get("futures") or []:
+                    sym = f["instrumentId"]["symbol"]
+                    self._inst[sym] = f
+                    self._role[sym] = "future"
+                    self._owner[sym] = asset_id
+                    entry["futures"].append(sym)
+                for role in ("ci", "t24", "index"):
+                    inst = found.get(role)
+                    if inst:
+                        sym = inst["instrumentId"]["symbol"]
+                        self._inst[sym] = inst
+                        self._role[sym] = role
+                        entry[role] = sym
+                self._assets[asset_id] = entry
 
     def instruments_debug(self) -> dict:
         with self._lock:
-            return {
-                "futures": list(self._future_order),
-                "ci": self._ci_symbol,
-                "t24": self._t24_symbol,
-            }
+            return {"assets": dict(self._assets), "aux": dict(self._aux)}
 
     # ---------- market data local (Primary) ----------
     def update_market_data(self, symbol: str, partial: dict) -> None:
@@ -157,31 +158,42 @@ class MarketStore:
             # Operación vieja (p.ej. tras reconectar): no se sabe el spot de ese momento.
             self._trade_spot.pop(symbol, None)
             return
-        spot = self._spot_now()
+        spot = self._spot_now(self._owner.get(symbol))
         if spot is None:
             self._trade_spot.pop(symbol, None)
             return
         self._trade_spot[symbol] = {"spot": spot, "ts": now}
 
-    def _spot_now(self) -> float | None:
-        """Último precio del spot configurado (fallback: el otro plazo). Requiere lock."""
-        use_t24 = config.spot_settlement.lower() == "24hs"
-        order = (self._t24_symbol, self._ci_symbol) if use_t24 else (self._ci_symbol, self._t24_symbol)
-        for sym in order:
-            if not sym:
-                continue
-            last = _price_of(self._md.get(sym, {}).get("LA"))
-            if last is not None:
-                return last
+    def _spot_now(self, asset_id: str | None) -> float | None:
+        """Último precio del spot de un activo en este instante. Requiere lock."""
+        asset = next((a for a in ASSETS if a.id == asset_id), None)
+        entry = self._assets.get(asset_id or "")
+        if not asset or not entry:
+            return None
+        if asset.kind == "adr":
+            use_t24 = config.spot_settlement.lower() == "24hs"
+            order = (entry["t24"], entry["ci"]) if use_t24 else (entry["ci"], entry["t24"])
+            for sym in order:
+                last = _price_of(self._md.get(sym or "", {}).get("LA"))
+                if last is not None:
+                    return last
+            return None
+        if asset.kind == "index":
+            md = self._md.get(entry["index"] or "", {})
+            return _price_of(md.get("IV")) or _price_of(md.get("LA"))
+        if asset.kind == "ext" and asset.ext:
+            last = _num(self._ext.get(asset.ext, {}).get("last"))
+            return last * asset.ext_scale if last is not None else None
         return None
 
-    # ---------- ADR (Alpaca) ----------
-    def update_adr(self, fields: dict) -> None:
+    # ---------- referencias externas (Finnhub) ----------
+    def update_ext(self, symbol: str, fields: dict) -> None:
         with self._lock:
+            cur = self._ext.setdefault(symbol, {})
             for k, v in fields.items():
                 if v is not None:
-                    self._adr[k] = v
-            self._adr_ts = time.time() * 1000.0
+                    cur[k] = v
+            self._ext_ts[symbol] = time.time() * 1000.0
             self._dirty = True
 
     # ---------- dirty flag ----------
@@ -192,10 +204,10 @@ class MarketStore:
             return d
 
     # ---------- summaries ----------
-    def _summary(self, symbol: str) -> dict | None:
-        """Resumen de un instrumento local (acción o futuro). Requiere lock."""
-        inst = self._inst.get(symbol)
-        if not inst:
+    def _summary(self, symbol: str | None) -> dict | None:
+        """Resumen de un instrumento local. Requiere lock."""
+        inst = self._inst.get(symbol or "")
+        if not inst or not symbol:
             return None
         md = self._md.get(symbol, {})
         ts = self._last_update.get(symbol, 0)
@@ -213,13 +225,15 @@ class MarketStore:
         mid = (bid + ask) / 2 if (bid is not None and ask is not None) else None
 
         last = _price_of(md.get("LA"))
+        if last is None and role == "index":
+            last = _price_of(md.get("IV"))  # los índices publican valor, no operaciones
         settlement = _price_of(md.get("SE"))
         prev_close = _price_of(md.get("CL"))
 
         summary = {
             "symbol": symbol,
             "role": role,
-            "label": self._label(symbol, role, mat),
+            "label": self._label(symbol, role),
             "maturityDate": mat,
             "daysToMaturity": days,
             "bid": bid,
@@ -252,38 +266,32 @@ class MarketStore:
         return summary
 
     @staticmethod
-    def _label(symbol: str, role: str, mat: str | None) -> str:
+    def _label(symbol: str, role: str) -> str:
         if role == "ci":
-            return "GGAL · CI"
+            return "CI"
         if role == "t24":
-            return "GGAL · 24hs"
-        # future: "GGAL/DIC25" -> "DIC25"
+            return "24hs"
+        # future: "GGAL/DIC26" -> "DIC26"
         idx = symbol.find("/")
         return symbol[idx + 1:] if idx >= 0 else symbol
 
-    def _adr_summary(self) -> dict | None:
-        if not config.alpaca_enabled:
+    def _ext_summary(self, symbol: str | None, scale: float = 1.0) -> dict | None:
+        """Resumen de una referencia externa (ADR, BTC, GLD). Requiere lock."""
+        if not symbol:
             return None
-        adr = self._adr
-        last = _num(adr.get("last"))
-        prev_close = _num(adr.get("prevClose"))
-        bid = _num(adr.get("bid"))
-        ask = _num(adr.get("ask"))
+        raw = self._ext.get(symbol, {})
+        q = {k: (_num(raw.get(k)) * scale if _num(raw.get(k)) is not None else None)
+             for k in _PRICE_KEYS}
+        last, prev_close, bid, ask = q["last"], q["prevClose"], q["bid"], q["ask"]
         ref = last if last is not None else (
             (bid + ask) / 2 if (bid is not None and ask is not None) else None
         )
         return {
-            "symbol": config.adr_symbol,
-            "last": last,
-            "bid": bid,
-            "bidSize": _num(adr.get("bidSize")),
-            "ask": ask,
-            "askSize": _num(adr.get("askSize")),
-            "open": _num(adr.get("open")),
-            "high": _num(adr.get("high")),
-            "low": _num(adr.get("low")),
-            "prevClose": prev_close,
-            "volume": _num(adr.get("volume")),
+            "symbol": symbol,
+            **q,
+            "bidSize": _num(raw.get("bidSize")),
+            "askSize": _num(raw.get("askSize")),
+            "volume": _num(raw.get("volume")),
             "ref": ref,
             "changeAbs": (ref - prev_close) if (ref is not None and prev_close is not None) else None,
             "changePct": (
@@ -291,59 +299,134 @@ class MarketStore:
                 if (ref is not None and prev_close not in (None, 0))
                 else None
             ),
-            "ts": self._adr_ts,
+            "ts": self._ext_ts.get(symbol, 0.0),
         }
 
     # ---------- snapshot computado ----------
     def computed_snapshot(self) -> dict:
         with self._lock:
-            ci = self._summary(self._ci_symbol) if self._ci_symbol else None
-            t24 = self._summary(self._t24_symbol) if self._t24_symbol else None
-            futures = [s for s in (self._summary(sym) for sym in self._future_order) if s]
-            adr = self._adr_summary()
+            raw: dict[str, dict] = {}
+            for a in ASSETS:
+                entry = self._assets.get(a.id) or {}
+                raw[a.id] = {
+                    "futures": [s for s in (self._summary(sym) for sym in entry.get("futures", [])) if s],
+                    "ci": self._summary(entry.get("ci")),
+                    "t24": self._summary(entry.get("t24")),
+                    "index": self._summary(entry.get("index")),
+                    "ext": self._ext_summary(a.ext, a.ext_scale),
+                }
             aux = {role: self._summary(sym) for role, sym in self._aux.items()}
             trade_spot = dict(self._trade_spot)
             caucion_days = self._caucion_days
+            caucion_short_days = self._caucion_short_days
 
-        # Spot de referencia para la tasa: el plazo configurado, con fallback.
-        spot_used = config.spot_settlement.lower()
-        primary_spot = t24 if spot_used == "24hs" else ci
-        fallback_spot = ci if spot_used == "24hs" else t24
-        spot_summary = primary_spot or fallback_spot
-        spot_ref = _ref_price(spot_summary) if spot_summary else None
-        spot_label = "24hs" if (spot_summary is t24) else ("CI" if spot_summary else spot_used)
-
-        # Caución en pesos (tasa libre de riesgo): cotiza en TNA %.
-        caucion = aux.get("caucion")
-        caucion_pct = _ref_price(caucion) if caucion else None
+        # Cauciones en pesos: cotizan en TNA %.
+        caucion_pct = _ref_price(aux.get("caucion"))
         caucion_tna = caucion_pct / 100.0 if caucion_pct is not None else None
+        short_pct = _ref_price(aux.get("caucionShort"))
 
+        # CCL por bonos (último operado de cada uno).
+        bond_ars = aux.get("bondArs")
+        bond_usd = aux.get("bondUsd")
+        ars_last = bond_ars.get("last") if bond_ars else None
+        usd_last = bond_usd.get("last") if bond_usd else None
+        ccl_bond = ars_last / usd_last if (ars_last and usd_last) else None
+
+        assets = {
+            a.id: self._compute_asset(
+                a, raw[a.id], trade_spot, caucion_tna, caucion_days, short_pct, ccl_bond
+            )
+            for a in ASSETS
+        }
+
+        return {
+            "assets": assets,
+            "order": [a.id for a in ASSETS],
+            "fx": {
+                "bondArs": config.bond_ars,
+                "bondUsd": config.bond_usd,
+                "settlement": config.bond_settlement,
+                "bondArsLast": ars_last,
+                "bondUsdLast": usd_last,
+                "cclBond": ccl_bond,
+            },
+            "caucion": {
+                "days": caucion_days,
+                "tna": caucion_tna,
+                "shortDays": caucion_short_days,
+                "shortTna": short_pct / 100.0 if short_pct is not None else None,
+                "threshold": config.signal_threshold,
+            },
+            "ts": time.time() * 1000.0,
+        }
+
+    @staticmethod
+    def _compute_asset(
+        a: Asset,
+        raw: dict,
+        trade_spot: dict,
+        caucion_tna: float | None,
+        caucion_days: int | None,
+        short_pct: float | None,
+        ccl_bond: float | None,
+    ) -> dict:
+        ci, t24, index, ext, futures = (
+            raw["ci"], raw["t24"], raw["index"], raw["ext"], raw["futures"],
+        )
+
+        # ---- spot de referencia según el tipo de activo ----
+        if a.kind == "adr":
+            use_t24 = config.spot_settlement.lower() == "24hs"
+            spot_summary = (t24 or ci) if use_t24 else (ci or t24)
+            spot_label = "24hs" if spot_summary is t24 else ("CI" if spot_summary else config.spot_settlement)
+        elif a.kind == "index":
+            spot_summary, spot_label = index, "índice Rofex"
+        elif a.kind == "ext":
+            spot_summary, spot_label = ext, a.ext_label or "ref."
+        else:  # "rate": la referencia es la caución corta (en TNA %)
+            spot_summary, spot_label = None, "caución"
+        spot_ref = short_pct if a.kind == "rate" else _ref_price(spot_summary)
+        # Sin último/valor en vivo el spot es el cierre anterior: las tasas quedan
+        # desfasadas, así que no se muestra cartel.
+        spot_stale = (
+            a.kind != "rate" and spot_ref is not None
+            and (spot_summary or {}).get("last") is None
+        )
+
+        # ---- futuros ----
         for fut in futures:
             days = fut.get("daysToMaturity")
-            # TNA/TEA del último operado, contra el spot del instante de la
-            # operación (sin operación vista en vivo quedan en None).
-            rec = trade_spot.get(fut["symbol"])
-            r = compute_rates(fut.get("last"), rec["spot"] if rec else None, days)
-            fut["rates"] = r.as_dict()
             fut["spotRef"] = spot_ref
-
+            rec = trade_spot.get(fut["symbol"])
             fut["tradeSpot"] = rec["spot"] if rec else None
             fut["tradeTs"] = rec["ts"] if rec else None
-            fut["tnaLast"] = (
-                compute_rates(fut.get("last"), rec["spot"], days).tna if rec else None
-            )
+
+            if a.kind == "rate":
+                # El precio del futuro ya es una tasa: se compara en puntos contra la caución.
+                fut["rates"] = compute_rates(None, None, days).as_dict()
+                fut["tnaLast"] = fut["tnaBid"] = fut["tnaAsk"] = None
+                fut["tnaTheo"] = fut["theoPrice"] = None
+                fut["signal"] = fut["signalEdge"] = None
+                for side in ("bid", "last", "ask"):
+                    p = fut.get(side)
+                    fut[f"{side}Diff"] = (p - spot_ref) if (p is not None and spot_ref is not None) else None
+                continue
+
+            # TNA/TEA del último operado, contra el spot del instante de la
+            # operación (sin operación vista en vivo quedan en None).
+            r = compute_rates(fut.get("last"), rec["spot"] if rec else None, days)
+            fut["rates"] = r.as_dict()
+            fut["tnaLast"] = r.tna
             fut["tnaBid"] = compute_rates(fut.get("bid"), spot_ref, days).tna
             fut["tnaAsk"] = compute_rates(fut.get("ask"), spot_ref, days).tna
 
             # Teórico por cost of carry (renovando la caución) y cartel.
-            growth = theoretical_growth(caucion_tna, caucion_days, days)
+            growth = theoretical_growth(caucion_tna, caucion_days, days) if a.carry else None
             tna_theo = (growth - 1.0) * (365 / days) if growth is not None else None
             fut["tnaTheo"] = tna_theo
-            fut["theoPrice"] = (
-                spot_ref * growth if (growth is not None and spot_ref) else None
-            )
+            fut["theoPrice"] = spot_ref * growth if (growth is not None and spot_ref) else None
             signal, edge = None, None
-            if tna_theo is not None:
+            if tna_theo is not None and not spot_stale:
                 thr = config.signal_threshold
                 if fut["tnaBid"] is not None and fut["tnaBid"] - tna_theo > thr:
                     signal, edge = "sell", fut["tnaBid"] - tna_theo
@@ -352,52 +435,43 @@ class MarketStore:
             fut["signal"] = signal
             fut["signalEdge"] = edge
 
-        # Dólar implícito (CCL) desde el ADR: (precio_BYMA_ARS * ratio) / ADR_USD
-        ccl = None
-        if adr and adr.get("last") and spot_ref:
-            try:
-                ccl = (spot_ref * config.adr_ratio) / adr["last"]
-            except ZeroDivisionError:
-                ccl = None
-
-        # CCL por bonos (último operado de cada uno) y valor teórico de la acción.
-        bond_ars = aux.get("bondArs")
-        bond_usd = aux.get("bondUsd")
-        ars_last = bond_ars.get("last") if bond_ars else None
-        usd_last = bond_usd.get("last") if bond_usd else None
-        ccl_bond = ars_last / usd_last if (ars_last and usd_last) else None
-        theo_stock = (
-            adr["last"] * ccl_bond / config.adr_ratio
-            if (ccl_bond and adr and adr.get("last") and config.adr_ratio)
-            else None
-        )
-        fx = {
-            "bondArs": config.bond_ars,
-            "bondUsd": config.bond_usd,
-            "settlement": config.bond_settlement,
-            "bondArsLast": ars_last,
-            "bondUsdLast": usd_last,
-            "cclBond": ccl_bond,
-            "cclAdr": ccl,
-            "gapPct": (ccl / ccl_bond - 1.0) if (ccl and ccl_bond) else None,
-            "theoStock": theo_stock,
-            "theoDiff": (spot_ref - theo_stock) if (theo_stock and spot_ref) else None,
-            "theoDiffPct": (spot_ref / theo_stock - 1.0) if (theo_stock and spot_ref) else None,
-        }
+        # ---- dólar implícito contra la referencia en USD y valor teórico ----
+        # (ADR: acción × ratio ÷ ADR; BTC: índice en pesos ÷ BTC en dólares)
+        ccl = theo = None
+        ext_last = ext.get("last") if ext else None
+        if a.currency == "ARS" and a.kind in ("adr", "index") and ext_last and spot_ref:
+            ccl = spot_ref * a.ratio / ext_last
+            if ccl_bond:
+                theo = ext_last * ccl_bond / a.ratio
 
         return {
-            "adr": adr,
-            "spot": {"ci": ci, "t24": t24, "used": spot_label, "ref": spot_ref},
+            "id": a.id,
+            "label": a.label,
+            "kind": a.kind,
+            "currency": a.currency,
+            "carry": a.carry,
+            "ext": ext,
+            "extLabel": a.ext_label,
+            "extScale": a.ext_scale,
+            "chart": a.chart,
+            "ratio": a.ratio,
+            "spot": {
+                "ci": ci,
+                "t24": t24,
+                "index": index,
+                "used": spot_label,
+                "ref": spot_ref,
+                "stale": spot_stale,
+                "changePct": spot_summary.get("changePct") if spot_summary else None,
+            },
             "futures": futures,
             "ccl": ccl,
-            "fx": fx,
-            "caucion": {
-                "days": caucion_days,
-                "tna": caucion_tna,
-                "threshold": config.signal_threshold,
-            },
-            "adrRatio": config.adr_ratio,
-            "ts": time.time() * 1000.0,
+            "gapPct": (ccl / ccl_bond - 1.0) if (ccl and ccl_bond) else None,
+            "theoSpot": theo,
+            "theoDiff": (spot_ref - theo) if (theo and spot_ref) else None,
+            "theoDiffPct": (spot_ref / theo - 1.0) if (theo and spot_ref) else None,
+            # Cartel del activo (el del vencimiento más cercano que tenga señal).
+            "signal": next((f["signal"] for f in futures if f.get("signal")), None),
         }
 
 

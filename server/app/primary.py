@@ -1,9 +1,10 @@
 """
-Cliente de Primary API vía pyRofex para GGAL.
+Cliente de Primary API vía pyRofex.
 
-Descubre y suscribe:
-  - Acción GGAL en BYMA (MERV), plazos CI y 24hs  → spot.
-  - Futuros GGAL en ROFX, los N vencimientos más cercanos.
+Descubre y suscribe, para cada activo de assets.py:
+  - Futuros en ROFX, los N vencimientos más cercanos.
+  - Acción en BYMA (plazos CI y 24hs) o índice de Rofex → spot.
+Además: bonos para el CCL y cauciones en pesos.
 
 Responsabilidades:
   - bootstrap: setear URLs de Veta, autenticar (REST) y descargar catálogo.
@@ -20,6 +21,7 @@ from typing import Any
 
 import pyRofex
 
+from .assets import ASSETS
 from .config import config
 from .store import store
 
@@ -38,15 +40,18 @@ _MD_ENTRIES = [
     pyRofex.MarketDataEntry.OPEN_INTEREST,
     pyRofex.MarketDataEntry.NOMINAL_VOLUME,
     pyRofex.MarketDataEntry.TRADE_COUNT,
+    pyRofex.MarketDataEntry.INDEX_VALUE,
 ]
 
 
-def _ticker_patterns(ticker: str) -> tuple[re.Pattern, re.Pattern]:
-    tk = re.escape(ticker)
-    # Futuro GGAL en Rofex: "GGAL/MMMYY" (p.ej. GGAL/DIC25). Excluye opciones/spreads.
-    fut = re.compile(rf"^{tk}/[A-Z]{{3}}\d{{2}}$", re.IGNORECASE)
-    # Acción en BYMA: "MERV - XMEV - GGAL - 24hs" / "- CI" / "- 48hs".
-    eq = re.compile(rf"{tk}\s*-\s*(CI|24hs|48hs)\s*$", re.IGNORECASE)
+def _ticker_patterns(fut_root: str, equity: str | None) -> tuple[re.Pattern, re.Pattern | None]:
+    # Futuro en Rofex: "GGAL/MMMYY" (p.ej. GGAL/DIC26). Excluye opciones/spreads.
+    fut = re.compile(rf"^{re.escape(fut_root)}/[A-Z]{{3}}\d{{2}}$", re.IGNORECASE)
+    # Acción en BYMA: "MERV - XMEV - GGAL - 24hs" / "- CI".
+    eq = (
+        re.compile(rf"-\s*{re.escape(equity)}\s*-\s*(CI|24hs)\s*$", re.IGNORECASE)
+        if equity else None
+    )
     return fut, eq
 
 
@@ -68,7 +73,7 @@ class PrimaryClient:
 
     # ---------- bootstrap (REST) ----------
     def bootstrap(self) -> None:
-        """Auth + catálogo + descubrimiento de instrumentos GGAL. Idempotente."""
+        """Auth + catálogo + descubrimiento de instrumentos. Idempotente."""
         if self._bootstrapped:
             return
         log.info("Bootstrap pyRofex (veta)...")
@@ -84,9 +89,9 @@ class PrimaryClient:
         det = pyRofex.get_detailed_instruments()
         instruments = det.get("instruments", []) if isinstance(det, dict) else []
 
-        fut_re, eq_re = _ticker_patterns(config.equity_ticker)
-        futures: list[dict] = []
-        eq_by_term: dict[str, dict] = {}  # 'ci' | '24hs' | '48hs' -> instrument
+        by_symbol = {
+            i.get("instrumentId", {}).get("symbol", ""): i for i in instruments
+        }
 
         # Bonos para el CCL ("MERV - XMEV - AL30 - 24hs") y cauciones en pesos
         # ("MERV - XMEV - PESOS - 7D").
@@ -94,76 +99,71 @@ class PrimaryClient:
         bond_ars_re = re.compile(rf"-\s*{re.escape(config.bond_ars)}\s*-\s*{term}\s*$", re.IGNORECASE)
         bond_usd_re = re.compile(rf"-\s*{re.escape(config.bond_usd)}\s*-\s*{term}\s*$", re.IGNORECASE)
         cau_re = re.compile(r"-\s*PESOS\s*-\s*(\d+)D\s*$", re.IGNORECASE)
-        aux: dict[str, dict] = {}         # 'bondArs' | 'bondUsd' | 'caucion' -> instrument
+        aux: dict[str, dict] = {}         # rol -> instrument
         cauciones: dict[int, dict] = {}   # plazo en días -> instrument
-
-        for i in instruments:
-            iid = i.get("instrumentId", {})
-            sym = iid.get("symbol", "")
-            if not sym:
-                continue
+        for sym, i in by_symbol.items():
             if bond_ars_re.search(sym):
                 aux["bondArs"] = i
-                continue
-            if bond_usd_re.search(sym):
+            elif bond_usd_re.search(sym):
                 aux["bondUsd"] = i
-                continue
-            c = cau_re.search(sym)
-            if c:
-                cauciones[int(c.group(1))] = i
-                continue
-            if fut_re.match(sym):
-                mid = iid.get("marketId")
-                if mid and config.futures_market and mid != config.futures_market:
-                    continue
-                futures.append(i)
-                continue
-            m = eq_re.search(sym)
-            if m:
-                eq_by_term[m.group(1).lower()] = i
+            else:
+                c = cau_re.search(sym)
+                if c:
+                    cauciones[int(c.group(1))] = i
 
-        futures.sort(key=lambda x: x.get("maturityDate") or "99999999")
-        if config.max_futures > 0:
-            futures = futures[: config.max_futures]
-
-        equity_ci = eq_by_term.get("ci")
-        equity_t24 = eq_by_term.get("24hs")
-
-        # Caución: el plazo configurado o, si ese día no cotiza, el más cercano.
-        caucion_days = None
+        # Cauciones: el plazo configurado o, si ese día no cotiza, el más cercano.
+        caucion_days = caucion_short_days = None
         if cauciones:
             caucion_days = min(cauciones, key=lambda d: abs(d - config.caucion_days))
             aux["caucion"] = cauciones[caucion_days]
+            caucion_short_days = min(cauciones, key=lambda d: abs(d - config.caucion_short_days))
+            if caucion_short_days != caucion_days:
+                aux["caucionShort"] = cauciones[caucion_short_days]
 
-        store.set_instruments(futures, equity_ci, equity_t24, aux, caucion_days)
-        self._symbols = [f["instrumentId"]["symbol"] for f in futures]
-        for inst in (equity_ci, equity_t24, *aux.values()):
-            if inst:
-                self._symbols.append(inst["instrumentId"]["symbol"])
+        # Por activo: futuros (los N vencimientos más cercanos), acción e índice.
+        per_asset: dict[str, dict] = {}
+        for a in ASSETS:
+            fut_re, eq_re = _ticker_patterns(a.fut_root, a.equity)
+            futures = [
+                i for sym, i in by_symbol.items()
+                if fut_re.match(sym)
+                and (not config.futures_market
+                     or i["instrumentId"].get("marketId") == config.futures_market)
+            ]
+            futures.sort(key=lambda x: x.get("maturityDate") or "99999999")
+            if config.max_futures > 0:
+                futures = futures[: config.max_futures]
+            found: dict = {"futures": futures, "ci": None, "t24": None, "index": None}
+            if eq_re is not None:
+                for sym, i in by_symbol.items():
+                    m = eq_re.search(sym)
+                    if m:
+                        found["ci" if m.group(1).lower() == "ci" else "t24"] = i
+            if a.index:
+                found["index"] = by_symbol.get(a.index)
+            per_asset[a.id] = found
+            log.info(
+                "%s: futuros=%s · CI=%s · 24hs=%s · índice=%s",
+                a.id,
+                [f["instrumentId"]["symbol"] for f in futures],
+                bool(found["ci"]), bool(found["t24"]), bool(found["index"]),
+            )
+            if not futures:
+                log.warning("No se encontraron futuros de %s en %s.", a.fut_root, config.futures_market)
+
+        store.set_instruments(per_asset, aux, caucion_days, caucion_short_days)
+        self._symbols = [
+            i["instrumentId"]["symbol"]
+            for found in per_asset.values()
+            for i in (*found["futures"], found["ci"], found["t24"], found["index"])
+            if i
+        ] + [i["instrumentId"]["symbol"] for i in aux.values()]
 
         self._bootstrapped = True
-        log.info(
-            "Catálogo GGAL: %d futuro(s) %s · acción CI=%s · 24hs=%s",
-            len(futures),
-            [f["instrumentId"]["symbol"] for f in futures],
-            equity_ci["instrumentId"]["symbol"] if equity_ci else "—",
-            equity_t24["instrumentId"]["symbol"] if equity_t24 else "—",
-        )
         log.info(
             "Auxiliares: %s",
             {k: v["instrumentId"]["symbol"] for k, v in aux.items()},
         )
-        if not futures:
-            log.warning(
-                "No se encontraron futuros de %s en %s. Revisá GGAL_EQUITY_TICKER "
-                "/ GGAL_FUTURES_MARKET o que tu cuenta tenga acceso al segmento.",
-                config.equity_ticker, config.futures_market,
-            )
-        if not (equity_ci or equity_t24):
-            log.warning(
-                "No se encontró la acción %s en BYMA (MERV). Revisá GGAL_EQUITY_TICKER.",
-                config.equity_ticker,
-            )
 
     # ---------- websocket ----------
     def _on_market_data(self, message: dict[str, Any]) -> None:

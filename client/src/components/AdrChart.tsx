@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { useMarket } from "../store/market";
 import { sessionPoints, type ChartPoint } from "../lib/bars";
+import type { AssetSnapshot } from "../types";
 
 const hhmm = (ts: number) =>
   new Date(ts).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -24,11 +25,13 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: any[] }
   );
 }
 
-export function AdrChart() {
-  const bars = useMarket((s) => s.adrBars);
-  const adrLast = useMarket((s) => s.snapshot?.adr?.last ?? null);
-  const changePct = useMarket((s) => s.snapshot?.adr?.changePct ?? null);
-  const points = sessionPoints(bars, adrLast);
+/** Gráfico intradía del ADR / referencia en dólares del activo elegido. */
+export function AdrChart({ asset }: { asset: AssetSnapshot }) {
+  const bars = useMarket((s) => (asset.chart ? s.bars[asset.chart] : undefined)) ?? [];
+  // El gráfico usa el precio crudo de la referencia (sin el factor de escala).
+  const last = asset.ext?.last != null ? asset.ext.last / (asset.extScale || 1) : null;
+  const changePct = asset.ext?.changePct ?? null;
+  const points = sessionPoints(bars, last);
 
   // Color por variación del día (vs cierre previo), como Google.
   const down = changePct != null && changePct < 0;
@@ -42,7 +45,7 @@ export function AdrChart() {
   return (
     <section className="panel">
       <div className="panel-title">
-        <span>ADR GGAL · intradía</span>
+        <span>{asset.extLabel ?? asset.chart} · intradía</span>
         <span className="font-normal text-text-dim">
           rueda actual · tiempo real
         </span>

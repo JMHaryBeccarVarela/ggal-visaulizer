@@ -121,10 +121,10 @@ export function Header() {
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-xl font-bold text-text">
-              GGAL <span className="text-accent">· Tiempo real</span>
+              Futuros Rofex <span className="text-accent">· Tiempo real</span>
             </h1>
             <p className="text-[13px] text-text-dim">
-              ADR (NYSE) · Acción (BYMA) · Futuros (Rofex) · TNA / TEA implícita
+              Spot · ADR · Futuros · TNA implícita vs teórica por caución
             </p>
           </div>
           <div className="flex items-center gap-2">

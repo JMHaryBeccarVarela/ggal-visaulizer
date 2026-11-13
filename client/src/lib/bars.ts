@@ -10,12 +10,12 @@ export interface ChartPoint {
   price: number;
 }
 
-/** Trae las barras intradía del ADR y las guarda en el store. */
-export async function fetchAdrBars(): Promise<void> {
+/** Trae las barras intradía de un símbolo (ADR / referencia) y las guarda en el store. */
+export async function fetchBars(symbol: string): Promise<void> {
   try {
-    const r = await fetch(apiUrl("/api/adr/bars"));
+    const r = await fetch(apiUrl(`/api/adr/bars?symbol=${encodeURIComponent(symbol)}`));
     const d = await r.json();
-    useMarket.getState().setAdrBars(Array.isArray(d.bars) ? d.bars : []);
+    useMarket.getState().setBars(symbol, Array.isArray(d.bars) ? d.bars : []);
   } catch {
     /* se reintenta en el próximo tick */
   }
