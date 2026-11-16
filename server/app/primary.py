@@ -43,6 +43,9 @@ _MD_ENTRIES = [
     pyRofex.MarketDataEntry.INDEX_VALUE,
 ]
 
+# Plazo máximo (días) de las cauciones que se suscriben como candidatas.
+_MAX_CAUCION_DAYS = 21
+
 
 def _ticker_patterns(fut_root: str, equity: str | None) -> tuple[re.Pattern, re.Pattern | None]:
     # Futuro en Rofex: "GGAL/MMMYY" (p.ej. GGAL/DIC26). Excluye opciones/spreads.
@@ -111,14 +114,9 @@ class PrimaryClient:
                 if c:
                     cauciones[int(c.group(1))] = i
 
-        # Cauciones: el plazo configurado o, si ese día no cotiza, el más cercano.
-        caucion_days = caucion_short_days = None
-        if cauciones:
-            caucion_days = min(cauciones, key=lambda d: abs(d - config.caucion_days))
-            aux["caucion"] = cauciones[caucion_days]
-            caucion_short_days = min(cauciones, key=lambda d: abs(d - config.caucion_short_days))
-            if caucion_short_days != caucion_days:
-                aux["caucionShort"] = cauciones[caucion_short_days]
+        # Cauciones: se suscriben los plazos cortos y el store elige en vivo cuál
+        # usar (el pedido si tiene puntas; si no, el más cercano con liquidez).
+        cauciones = {d: i for d, i in cauciones.items() if d <= _MAX_CAUCION_DAYS}
 
         # Por activo: futuros (los N vencimientos más cercanos), acción e índice.
         per_asset: dict[str, dict] = {}
@@ -151,18 +149,19 @@ class PrimaryClient:
             if not futures:
                 log.warning("No se encontraron futuros de %s en %s.", a.fut_root, config.futures_market)
 
-        store.set_instruments(per_asset, aux, caucion_days, caucion_short_days)
+        store.set_instruments(per_asset, aux, cauciones)
         self._symbols = [
             i["instrumentId"]["symbol"]
             for found in per_asset.values()
             for i in (*found["futures"], found["ci"], found["t24"], found["index"])
             if i
-        ] + [i["instrumentId"]["symbol"] for i in aux.values()]
+        ] + [i["instrumentId"]["symbol"] for i in (*aux.values(), *cauciones.values())]
 
         self._bootstrapped = True
         log.info(
-            "Auxiliares: %s",
+            "Auxiliares: %s · cauciones (días): %s",
             {k: v["instrumentId"]["symbol"] for k, v in aux.items()},
+            sorted(cauciones),
         )
 
     # ---------- websocket ----------

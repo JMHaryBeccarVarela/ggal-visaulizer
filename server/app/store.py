@@ -57,6 +57,41 @@ def _ref_price(summary: dict | None) -> float | None:
     return None
 
 
+def _caucion_rate(q: dict) -> float | None:
+    """Tasa de una caución: el último si cae dentro de las puntas; si no, el mid."""
+    bid, ask, last = q.get("bid"), q.get("ask"), q.get("last")
+    if bid is not None and ask is not None:
+        if last is not None and min(bid, ask) <= last <= max(bid, ask):
+            return float(last)
+        return (bid + ask) / 2
+    return _ref_price(q)
+
+
+def _pick_caucion(cauciones: dict[int, dict | None], target: int) -> tuple[int | None, float | None]:
+    """Elige la caución de referencia: el plazo pedido si tiene puntas; si no
+    (vence en fin de semana o feriado), el plazo más cercano que sí las tenga y,
+    a igual distancia, el de mayor liquidez. Devuelve (días, tasa en %)."""
+    quoted = {
+        d: q for d, q in cauciones.items()
+        if q and q.get("bid") is not None and q.get("ask") is not None
+    }
+
+    def liquidity(q: dict) -> float:
+        return (q.get("volume") or 0.0) + (q.get("bidSize") or 0.0) + (q.get("askSize") or 0.0)
+
+    if quoted:
+        days = target if target in quoted else min(
+            quoted, key=lambda d: (abs(d - target), -liquidity(quoted[d]))
+        )
+        return days, _caucion_rate(quoted[days])
+    # Sin puntas en ningún plazo (mercado cerrado): el más cercano con algún precio.
+    priced = {d: q for d, q in cauciones.items() if q and _ref_price(q) is not None}
+    if not priced:
+        return None, None
+    days = min(priced, key=lambda d: abs(d - target))
+    return days, _ref_price(priced[days])
+
+
 class MarketStore:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -67,9 +102,8 @@ class MarketStore:
         self._last_update: dict[str, float] = {}
         # id del activo -> {"futures": [symbols], "ci": sym, "t24": sym, "index": sym}
         self._assets: dict[str, dict] = {}
-        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" | "caucion" | "caucionShort" -> symbol
-        self._caucion_days: int | None = None
-        self._caucion_short_days: int | None = None
+        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" -> symbol
+        self._cauciones: dict[int, str] = {}   # plazo en días -> symbol de la caución
         self._trade_spot: dict[str, dict] = {} # futuro -> {"spot", "ts"} al operarse
         self._ext: dict[str, dict] = {}        # símbolo Finnhub -> campos mergeados
         self._ext_ts: dict[str, float] = {}
@@ -91,8 +125,7 @@ class MarketStore:
         self,
         per_asset: dict[str, dict],
         aux: dict[str, dict] | None = None,
-        caucion_days: int | None = None,
-        caucion_short_days: int | None = None,
+        cauciones: dict[int, dict] | None = None,
     ) -> None:
         """per_asset: id -> {"futures": [inst], "ci": inst, "t24": inst, "index": inst}."""
         with self._lock:
@@ -101,8 +134,13 @@ class MarketStore:
             self._owner = {}
             self._assets = {}
             self._aux = {}
-            self._caucion_days = caucion_days
-            self._caucion_short_days = caucion_short_days
+            self._cauciones = {}
+
+            for days, inst in (cauciones or {}).items():
+                sym = inst["instrumentId"]["symbol"]
+                self._inst[sym] = inst
+                self._role[sym] = "caucion"
+                self._cauciones[days] = sym
 
             for role, inst in (aux or {}).items():
                 sym = inst["instrumentId"]["symbol"]
@@ -317,13 +355,12 @@ class MarketStore:
                 }
             aux = {role: self._summary(sym) for role, sym in self._aux.items()}
             trade_spot = dict(self._trade_spot)
-            caucion_days = self._caucion_days
-            caucion_short_days = self._caucion_short_days
+            cauciones = {d: self._summary(sym) for d, sym in self._cauciones.items()}
 
         # Cauciones en pesos: cotizan en TNA %.
-        caucion_pct = _ref_price(aux.get("caucion"))
+        caucion_days, caucion_pct = _pick_caucion(cauciones, config.caucion_days)
         caucion_tna = caucion_pct / 100.0 if caucion_pct is not None else None
-        short_pct = _ref_price(aux.get("caucionShort"))
+        caucion_short_days, short_pct = _pick_caucion(cauciones, config.caucion_short_days)
 
         # CCL por bonos (último operado de cada uno).
         bond_ars = aux.get("bondArs")
