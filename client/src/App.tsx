@@ -229,8 +229,8 @@ function SpotTable({ asset }: { asset: AssetSnapshot }) {
           {asset.kind === "index" && (
             <>
               <SpotRow
-                name={`Índice ${asset.label}`}
-                market="Rofex · ARS"
+                name={`Índice ${asset.label}${asset.basketDate ? " (calc.)" : ""}`}
+                market={asset.basketDate ? "BYMA 24hs · ARS" : "Rofex · ARS"}
                 q={spot.index}
                 highlight
               />
@@ -246,6 +246,16 @@ function SpotTable({ asset }: { asset: AssetSnapshot }) {
               q={ext}
               highlight
             />
+          )}
+          {asset.basketDate && (
+            <tr>
+              <td className="note" colSpan={14}>
+                Calculado en vivo como Σ cantidad × último 24hs con la cartera vigente de A3
+                Mercados ({asset.basketDate}); una acción que todavía no operó entra con su
+                cierre ({spot.index?.componentsLive ?? 0}/{spot.index?.components ?? 20}{" "}
+                operaron hoy). El cierre anterior es el valor oficial del índice.
+              </td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -485,9 +495,8 @@ export default function App() {
           <>
             {asset.spot.stale && (
               <div className="warn border border-border px-3 py-1">
-                <b>Spot de {asset.label} sin valor en vivo:</b> Primary solo informa el cierre
-                anterior, así que las tasas contra el spot están desfasadas y no se muestra
-                cartel.
+                <b>Spot de {asset.label} sin valor en vivo:</b> todavía no hay precios del
+                día, así que las tasas contra el spot están desfasadas y no se muestra cartel.
               </div>
             )}
             <ReferenceTable asset={asset} fx={snapshot.fx} caucion={snapshot.caucion} />

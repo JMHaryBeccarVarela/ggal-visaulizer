@@ -31,7 +31,20 @@ class Asset:
     ratio: float = 1.0           # acciones locales por ADR
     chart: str | None = None     # símbolo en Alpaca para el gráfico intradía
     carry: bool = True           # teórico por caución en pesos + cartel
+    # Índice calculado: (ticker BYMA, cantidad) de la cartera; valor = Σ cantidad × precio 24hs.
+    basket: tuple[tuple[str, float], ...] = ()
+    basket_date: str | None = None
 
+
+# Cartera vigente del ROFEX 20 (A3 Mercados, vigente desde 2026-09-18).
+RFX20_CARTERA_FECHA = "2026-09-18"
+RFX20_CARTERA: tuple[tuple[str, float], ...] = (
+    ("ALUA", 10.06271), ("BBAR", 2.68592), ("BMA", 2.800371), ("BYMA", 65.370659),
+    ("CEPU", 10.87567), ("COME", 91.748265), ("ECOG", 2.675538), ("EDN", 2.212366),
+    ("GGAL", 12.635638), ("LOMA", 3.660094), ("METR", 2.238021), ("PAMP", 12.078651),
+    ("SUPV", 4.264612), ("TECO2", 1.775205), ("TGNO4", 1.151765), ("TGSU2", 2.64651),
+    ("TRAN", 2.759586), ("TXAR", 19.245274), ("VALO", 15.061863), ("YPFD", 11.208578),
+)
 
 ASSETS: list[Asset] = [
     Asset(
@@ -47,7 +60,14 @@ ASSETS: list[Asset] = [
         id="YPFD", label="YPFD", kind="adr", fut_root="YPFD",
         equity="YPFD", ext="YPF", ext_label="ADR YPF", ratio=10, chart="YPF",
     ),
-    Asset(id="RFX20", label="RFX20", kind="index", fut_root="RFX20", index="I.RFX20"),
+    # Primary solo publica el cierre de I.RFX20, así que el índice se calcula en
+    # vivo con la cartera vigente de A3 Mercados (a3mercados.com.ar/info-de-mercado/
+    # indices/rofex20). Con los cierres 24hs reproduce el valor oficial exacto.
+    # Hay que actualizarla en cada rebalanceo trimestral.
+    Asset(
+        id="RFX20", label="RFX20", kind="index", fut_root="RFX20", index="I.RFX20",
+        basket=RFX20_CARTERA, basket_date=RFX20_CARTERA_FECHA,
+    ),
     Asset(
         id="BTC", label="BTC", kind="index", fut_root="BTC", index="I.BTC",
         ext="BINANCE:BTCUSDT", ext_label="BTC/USD (Binance)",

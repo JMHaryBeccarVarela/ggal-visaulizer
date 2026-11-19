@@ -35,6 +35,9 @@ export interface LocalQuote {
   changeAbs: number | null;
   changePct: number | null;
   ts: number;
+  /** Solo índice calculado: componentes de la cartera y cuántos ya operaron hoy. */
+  components?: number;
+  componentsLive?: number;
 }
 
 export interface Rates {
@@ -104,6 +107,7 @@ export interface AssetSnapshot {
   extLabel: string | null;
   extScale: number;
   chart: string | null; // símbolo del gráfico intradía
+  basketDate: string | null; // índice calculado: fecha de la cartera usada
   ratio: number; // acciones locales por ADR
   spot: SpotBlock;
   futures: FutureQuote[];

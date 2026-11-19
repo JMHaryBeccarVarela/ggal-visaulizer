@@ -149,7 +149,7 @@ class MarketStore:
                 self._aux[role] = sym
 
             for asset_id, found in per_asset.items():
-                entry: dict = {"futures": [], "ci": None, "t24": None, "index": None}
+                entry: dict = {"futures": [], "ci": None, "t24": None, "index": None, "basket": []}
                 for f in found.get("futures") or []:
                     sym = f["instrumentId"]["symbol"]
                     self._inst[sym] = f
@@ -163,6 +163,11 @@ class MarketStore:
                         self._inst[sym] = inst
                         self._role[sym] = role
                         entry[role] = sym
+                for inst, qty in found.get("basket") or []:
+                    sym = inst["instrumentId"]["symbol"]
+                    self._inst.setdefault(sym, inst)
+                    self._role.setdefault(sym, "basket")
+                    entry["basket"].append((sym, qty))
                 self._assets[asset_id] = entry
 
     def instruments_debug(self) -> dict:
@@ -217,12 +222,63 @@ class MarketStore:
                     return last
             return None
         if asset.kind == "index":
+            if entry.get("basket"):
+                calc = self._basket_summary(asset_id or "", entry["basket"])
+                return calc["last"] if calc else None
             md = self._md.get(entry["index"] or "", {})
             return _price_of(md.get("IV")) or _price_of(md.get("LA"))
         if asset.kind == "ext" and asset.ext:
             last = _num(self._ext.get(asset.ext, {}).get("last"))
             return last * asset.ext_scale if last is not None else None
         return None
+
+    def _basket_summary(self, asset_id: str, basket: list[tuple[str, float]]) -> dict | None:
+        """Índice calculado: Σ cantidad × último 24hs (el cierre si una acción
+        todavía no operó). Sin ninguna operación del día → last None. Requiere lock."""
+        if not basket:
+            return None
+        value = prev = 0.0
+        live = 0
+        prev_ok = True
+        ts = 0.0
+        for sym, qty in basket:
+            md = self._md.get(sym, {})
+            last = _price_of(md.get("LA"))
+            close = _price_of(md.get("CL"))
+            if last is not None:
+                live += 1
+            px = last if last is not None else close
+            if px is None:
+                return None  # falta un componente: no se puede calcular
+            value += qty * px
+            if close is None:
+                prev_ok = False
+            else:
+                prev += qty * close
+            ts = max(ts, self._last_update.get(sym, 0.0))
+        prev_close = prev if prev_ok else None
+        last_val = value if live else None
+        ref = last_val if last_val is not None else prev_close
+        return {
+            "symbol": f"{asset_id} (calc.)",
+            "role": "index",
+            "label": f"{asset_id} calculado",
+            "maturityDate": None,
+            "daysToMaturity": None,
+            "bid": None, "bidSize": None, "ask": None, "askSize": None, "mid": None,
+            "last": last_val,
+            "open": None, "high": None, "low": None,
+            "prevClose": prev_close,
+            "settlement": None,
+            "volume": None,
+            "openInterest": None,
+            "ts": ts,
+            "ref": ref,
+            "changeAbs": (ref - prev_close) if (ref is not None and prev_close) else None,
+            "changePct": (ref / prev_close - 1.0) if (ref is not None and prev_close) else None,
+            "components": len(basket),
+            "componentsLive": live,
+        }
 
     # ---------- referencias externas (Finnhub) ----------
     def update_ext(self, symbol: str, fields: dict) -> None:
@@ -350,7 +406,10 @@ class MarketStore:
                     "futures": [s for s in (self._summary(sym) for sym in entry.get("futures", [])) if s],
                     "ci": self._summary(entry.get("ci")),
                     "t24": self._summary(entry.get("t24")),
-                    "index": self._summary(entry.get("index")),
+                    "index": (
+                        self._basket_summary(a.id, entry["basket"])
+                        if entry.get("basket") else self._summary(entry.get("index"))
+                    ),
                     "ext": self._ext_summary(a.ext, a.ext_scale),
                 }
             aux = {role: self._summary(sym) for role, sym in self._aux.items()}
@@ -417,7 +476,8 @@ class MarketStore:
             spot_summary = (t24 or ci) if use_t24 else (ci or t24)
             spot_label = "24hs" if spot_summary is t24 else ("CI" if spot_summary else config.spot_settlement)
         elif a.kind == "index":
-            spot_summary, spot_label = index, "índice Rofex"
+            spot_summary = index
+            spot_label = "índice calculado" if a.basket else "índice Rofex"
         elif a.kind == "ext":
             spot_summary, spot_label = ext, a.ext_label or "ref."
         else:  # "rate": la referencia es la caución corta (en TNA %)
@@ -491,6 +551,7 @@ class MarketStore:
             "extLabel": a.ext_label,
             "extScale": a.ext_scale,
             "chart": a.chart,
+            "basketDate": a.basket_date,
             "ratio": a.ratio,
             "spot": {
                 "ci": ci,

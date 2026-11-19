@@ -139,6 +139,14 @@ class PrimaryClient:
                         found["ci" if m.group(1).lower() == "ci" else "t24"] = i
             if a.index:
                 found["index"] = by_symbol.get(a.index)
+            if a.basket:
+                found["basket"] = [
+                    (by_symbol[f"MERV - XMEV - {tk} - 24hs"], qty)
+                    for tk, qty in a.basket
+                    if f"MERV - XMEV - {tk} - 24hs" in by_symbol
+                ]
+                if len(found["basket"]) != len(a.basket):
+                    log.warning("%s: faltan componentes de la cartera en el catálogo.", a.id)
             per_asset[a.id] = found
             log.info(
                 "%s: futuros=%s · CI=%s · 24hs=%s · índice=%s",
@@ -150,12 +158,16 @@ class PrimaryClient:
                 log.warning("No se encontraron futuros de %s en %s.", a.fut_root, config.futures_market)
 
         store.set_instruments(per_asset, aux, cauciones)
-        self._symbols = [
+        symbols = [
             i["instrumentId"]["symbol"]
             for found in per_asset.values()
-            for i in (*found["futures"], found["ci"], found["t24"], found["index"])
+            for i in (
+                *found["futures"], found["ci"], found["t24"], found["index"],
+                *(inst for inst, _ in found.get("basket", [])),
+            )
             if i
         ] + [i["instrumentId"]["symbol"] for i in (*aux.values(), *cauciones.values())]
+        self._symbols = list(dict.fromkeys(symbols))  # sin repetidos (GGAL 24hs está en dos lados)
 
         self._bootstrapped = True
         log.info(

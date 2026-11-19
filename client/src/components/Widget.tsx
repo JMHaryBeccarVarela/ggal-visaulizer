@@ -159,7 +159,9 @@ export function Widget() {
                   ? "cauc."
                   : asset?.spot.stale
                     ? "cierre ant."
-                    : "spot"}
+                    : asset?.basketDate
+                      ? "calc."
+                      : "spot"}
               <span className={`dot ${live ? "on" : ""}`} />
             </td>
             <td className={`big ${spotText.length > 12 ? "long" : ""}`} colSpan={asset?.theoSpot != null ? 1 : 2}>
