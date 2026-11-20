@@ -102,7 +102,7 @@ class MarketStore:
         self._last_update: dict[str, float] = {}
         # id del activo -> {"futures": [symbols], "ci": sym, "t24": sym, "index": sym}
         self._assets: dict[str, dict] = {}
-        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" | "bondMep" -> symbol
+        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" | "bondMep" | "dlrSpot" -> symbol
         self._cauciones: dict[int, str] = {}   # plazo en días -> symbol de la caución
         self._trade_spot: dict[str, dict] = {} # futuro -> {"spot", "ts"} al operarse
         self._ext: dict[str, dict] = {}        # símbolo Finnhub -> campos mergeados
@@ -319,8 +319,8 @@ class MarketStore:
         mid = (bid + ask) / 2 if (bid is not None and ask is not None) else None
 
         last = _price_of(md.get("LA"))
-        if last is None and role == "index":
-            last = _price_of(md.get("IV"))  # los índices publican valor, no operaciones
+        if last is None and role in ("index", "dlrSpot"):
+            last = _price_of(md.get("IV"))  # índices y DLR/SPOT publican valor, no operaciones
         settlement = _price_of(md.get("SE"))
         prev_close = _price_of(md.get("CL"))
 
@@ -438,6 +438,10 @@ class MarketStore:
         ccl_prev = ars_prev / usd_prev if (ars_prev and usd_prev) else None
         mep_prev = ars_prev / mep_prev_px if (ars_prev and mep_prev_px) else None
 
+        # Dólar mayorista A3500 (DLR/SPOT de Rofex).
+        dlr = aux.get("dlrSpot") or {}
+        a3500, a3500_prev = dlr.get("last"), dlr.get("prevClose")
+
         assets = {
             a.id: self._compute_asset(
                 a, raw[a.id], trade_spot, caucion_tna, caucion_days, short_pct, ccl_bond
@@ -462,6 +466,10 @@ class MarketStore:
                 "mep": mep,
                 "mepPrev": mep_prev,
                 "mepChangePct": (mep / mep_prev - 1.0) if (mep and mep_prev) else None,
+                "a3500": a3500,
+                "a3500Prev": a3500_prev,
+                "a3500ChangePct": (a3500 / a3500_prev - 1.0) if (a3500 and a3500_prev) else None,
+                "a3500Ts": dlr.get("ts"),
             },
             "caucion": {
                 "days": caucion_days,

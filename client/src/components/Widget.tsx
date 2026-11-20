@@ -198,6 +198,15 @@ export function Widget() {
             <td>{fmtPrice(fx?.mep)}</td>
             <td className={`c ${chgClass(fx?.mepChangePct)}`}>{fmtSignedPct(fx?.mepChangePct)}</td>
           </tr>
+          <tr>
+            <td className="l">A3500</td>
+            <td>{fmtPrice(fx?.a3500)}</td>
+            <td className={`c ${chgClass(fx?.a3500ChangePct)}`}>{fmtSignedPct(fx?.a3500ChangePct)}</td>
+            <td className="l">Brecha</td>
+            <td colSpan={2} className="c" title="CCL / A3500 − 1">
+              {fx?.cclBond != null && fx?.a3500 ? fmtSignedPct(fx.cclBond / fx.a3500 - 1) : "—"}
+            </td>
+          </tr>
         </tbody>
       </table>
 

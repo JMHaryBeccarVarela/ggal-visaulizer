@@ -134,6 +134,10 @@ export interface FxBlock {
   mep: number | null;
   mepPrev: number | null;
   mepChangePct: number | null;
+  a3500: number | null; // dólar mayorista (DLR/SPOT de Rofex)
+  a3500Prev: number | null;
+  a3500ChangePct: number | null;
+  a3500Ts: number | null;
 }
 
 export interface CaucionBlock {

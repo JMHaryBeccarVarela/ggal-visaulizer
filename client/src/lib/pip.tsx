@@ -76,7 +76,7 @@ export async function openWidget(): Promise<void> {
     .documentPictureInPicture;
   if (!dpip) throw new Error("Document Picture-in-Picture no soportado");
 
-  const win: Window = await dpip.requestWindow({ width: 380, height: 320 });
+  const win: Window = await dpip.requestWindow({ width: 380, height: 340 });
   pipWin = win;
 
   // Carlito = equivalente métrico de Calibri, para equipos sin Office.

@@ -43,6 +43,9 @@ _MD_ENTRIES = [
     pyRofex.MarketDataEntry.INDEX_VALUE,
 ]
 
+# Dólar mayorista A3500 de Rofex: publica el valor en IV (como un índice).
+_DLR_SPOT = "DLR/SPOT"
+
 # Plazo máximo (días) de las cauciones que se suscriben como candidatas.
 _MAX_CAUCION_DAYS = 21
 
@@ -112,6 +115,8 @@ class PrimaryClient:
                 aux["bondUsd"] = i
             elif bond_mep_re.search(sym):
                 aux["bondMep"] = i
+            elif sym == _DLR_SPOT:
+                aux["dlrSpot"] = i
             else:
                 c = cau_re.search(sym)
                 if c:
