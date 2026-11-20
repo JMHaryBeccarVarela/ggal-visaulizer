@@ -96,11 +96,12 @@ class PrimaryClient:
             i.get("instrumentId", {}).get("symbol", ""): i for i in instruments
         }
 
-        # Bonos para el CCL ("MERV - XMEV - AL30 - 24hs") y cauciones en pesos
+        # Bonos para el CCL y el MEP ("MERV - XMEV - AL30 - 24hs") y cauciones en pesos
         # ("MERV - XMEV - PESOS - 7D").
         term = re.escape(config.bond_settlement)
         bond_ars_re = re.compile(rf"-\s*{re.escape(config.bond_ars)}\s*-\s*{term}\s*$", re.IGNORECASE)
         bond_usd_re = re.compile(rf"-\s*{re.escape(config.bond_usd)}\s*-\s*{term}\s*$", re.IGNORECASE)
+        bond_mep_re = re.compile(rf"-\s*{re.escape(config.bond_mep)}\s*-\s*{term}\s*$", re.IGNORECASE)
         cau_re = re.compile(r"-\s*PESOS\s*-\s*(\d+)D\s*$", re.IGNORECASE)
         aux: dict[str, dict] = {}         # rol -> instrument
         cauciones: dict[int, dict] = {}   # plazo en días -> instrument
@@ -109,6 +110,8 @@ class PrimaryClient:
                 aux["bondArs"] = i
             elif bond_usd_re.search(sym):
                 aux["bondUsd"] = i
+            elif bond_mep_re.search(sym):
+                aux["bondMep"] = i
             else:
                 c = cau_re.search(sym)
                 if c:

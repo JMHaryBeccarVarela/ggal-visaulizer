@@ -102,7 +102,7 @@ class MarketStore:
         self._last_update: dict[str, float] = {}
         # id del activo -> {"futures": [symbols], "ci": sym, "t24": sym, "index": sym}
         self._assets: dict[str, dict] = {}
-        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" -> symbol
+        self._aux: dict[str, str] = {}         # "bondArs" | "bondUsd" | "bondMep" -> symbol
         self._cauciones: dict[int, str] = {}   # plazo en días -> symbol de la caución
         self._trade_spot: dict[str, dict] = {} # futuro -> {"spot", "ts"} al operarse
         self._ext: dict[str, dict] = {}        # símbolo Finnhub -> campos mergeados
@@ -428,6 +428,16 @@ class MarketStore:
         usd_last = bond_usd.get("last") if bond_usd else None
         ccl_bond = ars_last / usd_last if (ars_last and usd_last) else None
 
+        # Dólar MEP y cierres anteriores de ambos (para la variación diaria).
+        bond_mep = aux.get("bondMep")
+        mep_last = bond_mep.get("last") if bond_mep else None
+        mep = ars_last / mep_last if (ars_last and mep_last) else None
+        ars_prev = bond_ars.get("prevClose") if bond_ars else None
+        usd_prev = bond_usd.get("prevClose") if bond_usd else None
+        mep_prev_px = bond_mep.get("prevClose") if bond_mep else None
+        ccl_prev = ars_prev / usd_prev if (ars_prev and usd_prev) else None
+        mep_prev = ars_prev / mep_prev_px if (ars_prev and mep_prev_px) else None
+
         assets = {
             a.id: self._compute_asset(
                 a, raw[a.id], trade_spot, caucion_tna, caucion_days, short_pct, ccl_bond
@@ -445,6 +455,13 @@ class MarketStore:
                 "bondArsLast": ars_last,
                 "bondUsdLast": usd_last,
                 "cclBond": ccl_bond,
+                "cclPrev": ccl_prev,
+                "cclChangePct": (ccl_bond / ccl_prev - 1.0) if (ccl_bond and ccl_prev) else None,
+                "bondMep": config.bond_mep,
+                "bondMepLast": mep_last,
+                "mep": mep,
+                "mepPrev": mep_prev,
+                "mepChangePct": (mep / mep_prev - 1.0) if (mep and mep_prev) else None,
             },
             "caucion": {
                 "days": caucion_days,

@@ -86,6 +86,7 @@ function Tabs() {
 export function Widget() {
   const asset = useMarket(selectAsset);
   const caucion = useMarket((s) => s.snapshot?.caucion ?? null);
+  const fx = useMarket((s) => s.snapshot?.fx ?? null);
   const feedEnabled = useMarket((s) => s.status?.feedEnabled ?? false);
   const wsConnected = useMarket((s) => s.wsConnected);
   const allBars = useMarket((s) => s.bars);
@@ -184,6 +185,19 @@ export function Widget() {
               <td className={`c ${chgClass(ext?.changePct)}`}>{fmtSignedPct(ext?.changePct)}</td>
             </tr>
           )}
+        </tbody>
+      </table>
+
+      <table>
+        <tbody>
+          <tr>
+            <td className="l">CCL</td>
+            <td>{fmtPrice(fx?.cclBond)}</td>
+            <td className={`c ${chgClass(fx?.cclChangePct)}`}>{fmtSignedPct(fx?.cclChangePct)}</td>
+            <td className="l">MEP</td>
+            <td>{fmtPrice(fx?.mep)}</td>
+            <td className={`c ${chgClass(fx?.mepChangePct)}`}>{fmtSignedPct(fx?.mepChangePct)}</td>
+          </tr>
         </tbody>
       </table>
 

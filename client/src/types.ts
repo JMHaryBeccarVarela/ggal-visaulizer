@@ -119,7 +119,7 @@ export interface AssetSnapshot {
   signal: "buy" | "sell" | null;
 }
 
-/** CCL por bonos. */
+/** CCL y MEP por bonos (últimos operados) y su variación contra el cierre anterior. */
 export interface FxBlock {
   bondArs: string;
   bondUsd: string;
@@ -127,6 +127,13 @@ export interface FxBlock {
   bondArsLast: number | null;
   bondUsdLast: number | null;
   cclBond: number | null;
+  cclPrev: number | null;
+  cclChangePct: number | null;
+  bondMep: string;
+  bondMepLast: number | null;
+  mep: number | null;
+  mepPrev: number | null;
+  mepChangePct: number | null;
 }
 
 export interface CaucionBlock {
