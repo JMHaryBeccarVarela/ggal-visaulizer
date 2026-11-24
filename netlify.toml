@@ -1,7 +1,6 @@
 # Netlify — Front (Vite build estático)
 # Deploy: Add new site → Import from Git → elegí este repo.
-# Netlify lee este archivo. Falta setear una sola variable en el panel:
-#   VITE_API_BASE = https://<tu-app>.onrender.com   (la URL de Render)
+# Netlify lee este archivo. La URL del server (VITE_API_BASE) está acá abajo.
 
 [build]
   base = "client"
@@ -10,6 +9,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # URL del server en Render. Pisa la variable VITE_API_BASE del panel de Netlify.
+  VITE_API_BASE = "https://ggal-visaulizer.onrender.com"
 
 # SPA de una sola página: cualquier ruta sirve index.html
 [[redirects]]
