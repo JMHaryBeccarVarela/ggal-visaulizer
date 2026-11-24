@@ -370,7 +370,7 @@ class MarketStore:
         return symbol[idx + 1:] if idx >= 0 else symbol
 
     def _ext_summary(self, symbol: str | None, scale: float = 1.0) -> dict | None:
-        """Resumen de una referencia externa (ADR, BTC, GLD). Requiere lock."""
+        """Resumen de una referencia externa (ADR). Requiere lock."""
         if not symbol:
             return None
         raw = self._ext.get(symbol, {})
@@ -558,7 +558,7 @@ class MarketStore:
             fut["signalEdge"] = edge
 
         # ---- dólar implícito contra la referencia en USD y valor teórico ----
-        # (ADR: acción × ratio ÷ ADR; BTC: índice en pesos ÷ BTC en dólares)
+        # (ADR: acción × ratio ÷ ADR)
         ccl = theo = None
         ext_last = ext.get("last") if ext else None
         if a.currency == "ARS" and a.kind in ("adr", "index") and ext_last and spot_ref:

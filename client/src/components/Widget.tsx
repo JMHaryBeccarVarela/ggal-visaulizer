@@ -91,7 +91,8 @@ export function Widget() {
   const wsConnected = useMarket((s) => s.wsConnected);
   const allBars = useMarket((s) => s.bars);
 
-  const live = feedEnabled && wsConnected;
+  const feedActive = useMarket((s) => s.status?.feedActive ?? true);
+  const live = feedEnabled && feedActive && wsConnected;
   const isRate = asset?.kind === "rate";
   const ext = asset?.ext ?? null;
   const spotRef = asset?.spot.ref ?? null;
@@ -293,7 +294,7 @@ export function Widget() {
       )}
 
       {futures.length === 0 && (
-        <div className="empty">{feedEnabled ? "esperando datos…" : "datos en pausa"}</div>
+        <div className="empty">{!feedEnabled ? "datos en pausa" : feedActive ? "esperando datos…" : "fuera de horario"}</div>
       )}
     </div>
   );

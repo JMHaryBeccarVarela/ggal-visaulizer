@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 from typing import Any
 
 import pyRofex
@@ -43,6 +44,9 @@ _MD_ENTRIES = [
     pyRofex.MarketDataEntry.INDEX_VALUE,
 ]
 
+# Antigüedad máxima del token antes de reconectar el websocket.
+_REAUTH_SECONDS = 6 * 3600
+
 # Dólar mayorista A3500 de Rofex: publica el valor en IV (como un índice).
 _DLR_SPOT = "DLR/SPOT"
 
@@ -67,6 +71,7 @@ class PrimaryClient:
         self._bootstrapped = False
         self._symbols: list[str] = []
         self._ws_open = False
+        self._auth_ts = 0.0
         self._lock = threading.Lock()
 
     @property
@@ -77,6 +82,16 @@ class PrimaryClient:
     def bootstrapped(self) -> bool:
         return self._bootstrapped
 
+    def _authenticate(self) -> None:
+        """Login REST en Primary (token nuevo)."""
+        pyRofex.initialize(
+            user=config.user,
+            password=config.password,
+            account=config.account or "0",
+            environment=pyRofex.Environment.LIVE,
+        )
+        self._auth_ts = time.time()
+
     # ---------- bootstrap (REST) ----------
     def bootstrap(self) -> None:
         """Auth + catálogo + descubrimiento de instrumentos. Idempotente."""
@@ -85,12 +100,7 @@ class PrimaryClient:
         log.info("Bootstrap pyRofex (veta)...")
         pyRofex._set_environment_parameter("url", config.rest_url, pyRofex.Environment.LIVE)
         pyRofex._set_environment_parameter("ws", config.ws_url, pyRofex.Environment.LIVE)
-        pyRofex.initialize(
-            user=config.user,
-            password=config.password,
-            account=config.account or "0",
-            environment=pyRofex.Environment.LIVE,
-        )
+        self._authenticate()
 
         det = pyRofex.get_detailed_instruments()
         instruments = det.get("instruments", []) if isinstance(det, dict) else []
@@ -215,6 +225,10 @@ class PrimaryClient:
             self._state = "connecting"
         log.info("Abriendo websocket y suscribiendo market data...")
         try:
+            # El feed se corta fuera de horario y se reconecta al otro día: se
+            # renueva el token si es viejo para que el websocket no falle.
+            if time.time() - self._auth_ts > _REAUTH_SECONDS:
+                self._authenticate()
             pyRofex.init_websocket_connection(
                 market_data_handler=self._on_market_data,
                 error_handler=self._on_error,

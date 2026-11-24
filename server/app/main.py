@@ -18,7 +18,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import json
 import time
+import zlib
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +29,7 @@ from .alpaca import alpaca
 from .assets import CHART_SYMBOLS
 from .finnhub import finnhub
 from .config import config
-from .market_hours import market_status, us_market_status
+from .market_hours import market_status, session_open, us_market_status
 from .primary import primary
 from .store import store
 
@@ -46,6 +48,8 @@ def _msg(type_: str, data=None) -> dict:
 def _status() -> dict:
     return {
         "feedEnabled": store.feed_enabled,
+        # Encendido y en horario: las fuentes están conectadas.
+        "feedActive": _feed_active(),
         "primaryState": primary.state,
         "adrState": finnhub.state,
         "market": market_status(),
@@ -105,9 +109,15 @@ async def _broadcaster() -> None:
             log.exception("Error en broadcaster")
 
 
+def _feed_active() -> bool:
+    """El feed encendido se conecta solo en horario de mercado (BYMA o EE.UU.);
+    fuera de horario se corta para no gastar tráfico ni sesiones."""
+    return store.feed_enabled and session_open()
+
+
 async def _apply_feed_state() -> None:
-    """Conecta o desconecta las fuentes de datos según el flag de feed."""
-    if store.feed_enabled:
+    """Conecta o desconecta las fuentes de datos según el flag de feed y el horario."""
+    if _feed_active():
         if not primary.bootstrapped:
             await asyncio.to_thread(primary.bootstrap)
         await asyncio.to_thread(primary.connect_ws)
@@ -116,7 +126,10 @@ async def _apply_feed_state() -> None:
     else:
         with contextlib.suppress(Exception):
             finnhub.stop()
-        await asyncio.to_thread(primary.disconnect_ws, "feed apagado")
+        await asyncio.to_thread(
+            primary.disconnect_ws,
+            "feed apagado" if not store.feed_enabled else "fuera de horario de mercado",
+        )
 
 
 async def _connection_supervisor() -> None:
@@ -209,24 +222,47 @@ async def feed_stop():
     return {"feedEnabled": False}
 
 
+class _Deflater:
+    """Comprime los mensajes de un cliente con deflate "raw" y contexto compartido
+    (cada mensaje cierra con un sync flush). Como los snapshots se parecen mucho
+    entre sí, el tráfico baja a una fracción del JSON. El cliente lo descomprime
+    con DecompressionStream("deflate-raw") y separa los mensajes por "\\n"."""
+
+    def __init__(self) -> None:
+        self._c = zlib.compressobj(6, zlib.DEFLATED, -15)
+
+    def pack(self, message: dict) -> bytes:
+        raw = json.dumps(message, separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
+        return self._c.compress(raw) + self._c.flush(zlib.Z_SYNC_FLUSH)
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     q = await manager.connect(ws)
+    # ?z=1 → mensajes comprimidos (binarios). Sin el parámetro, JSON en texto.
+    deflater = _Deflater() if ws.query_params.get("z") == "1" else None
 
-    await ws.send_json(_msg("snapshot", store.computed_snapshot()))
-    await ws.send_json(_msg("status", _status()))
+    async def send(message: dict) -> None:
+        if deflater:
+            await ws.send_bytes(deflater.pack(message))
+        else:
+            await ws.send_json(message)
+
+    await send(_msg("snapshot", store.computed_snapshot()))
+    await send(_msg("status", _status()))
 
     async def sender():
         while True:
             message = await q.get()
-            await ws.send_json(message)
+            await send(message)
 
     sender_task = asyncio.create_task(sender())
     try:
         while True:
             raw = await ws.receive_json()
             if raw.get("type") == "ping":
-                await ws.send_json(_msg("pong"))
+                # Por la cola: un solo emisor mantiene ordenado el stream comprimido.
+                q.put_nowait(_msg("pong"))
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001

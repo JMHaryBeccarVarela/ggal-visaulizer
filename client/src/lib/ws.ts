@@ -8,9 +8,65 @@ const MAX_DELAY = 15_000;
 let reconnectTimer: number | null = null;
 let pingTimer: number | null = null;
 
+/** Pasa un mensaje del server al store. */
+function handle(msg: ServerMessage): void {
+  const s = useMarket.getState();
+  switch (msg.type) {
+    case "snapshot":
+      s.applySnapshot(msg.data);
+      break;
+    case "status":
+      s.setStatus(msg.data);
+      break;
+    case "pong":
+    default:
+      break;
+  }
+}
+
+/**
+ * Descompresor del stream del server: deflate "raw" con contexto compartido
+ * entre mensajes; cada mensaje es una línea JSON terminada en "\n".
+ */
+function inflater(): ((chunk: ArrayBuffer) => void) | null {
+  if (typeof DecompressionStream === "undefined") return null;
+  const ds = new DecompressionStream("deflate-raw");
+  const writer = ds.writable.getWriter();
+  const reader = ds.readable.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  (async () => {
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += value;
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          try {
+            handle(JSON.parse(line) as ServerMessage);
+          } catch {
+            /* línea corrupta: se descarta */
+          }
+        }
+      }
+    } catch {
+      /* el stream se cierra con el socket */
+    }
+  })();
+  return (chunk) => {
+    writer.write(new Uint8Array(chunk)).catch(() => {});
+  };
+}
+
 export function connectWs(): void {
   if (socket && socket.readyState !== WebSocket.CLOSED) return;
-  const ws = new WebSocket(wsUrl());
+  // Con DecompressionStream se piden los mensajes comprimidos (?z=1).
+  const inflate = inflater();
+  const url = wsUrl();
+  const ws = new WebSocket(inflate ? `${url}${url.includes("?") ? "&" : "?"}z=1` : url);
+  ws.binaryType = "arraybuffer";
   socket = ws;
 
   ws.onopen = () => {
@@ -25,23 +81,14 @@ export function connectWs(): void {
   };
 
   ws.onmessage = (ev) => {
-    let msg: ServerMessage;
-    try {
-      msg = JSON.parse(ev.data) as ServerMessage;
-    } catch {
+    if (ev.data instanceof ArrayBuffer) {
+      inflate?.(ev.data);
       return;
     }
-    const s = useMarket.getState();
-    switch (msg.type) {
-      case "snapshot":
-        s.applySnapshot(msg.data);
-        break;
-      case "status":
-        s.setStatus(msg.data);
-        break;
-      case "pong":
-      default:
-        break;
+    try {
+      handle(JSON.parse(ev.data) as ServerMessage); // server sin compresión
+    } catch {
+      /* mensaje inválido */
     }
   };
 

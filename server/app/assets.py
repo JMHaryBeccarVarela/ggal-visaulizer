@@ -3,7 +3,7 @@ Activos que muestra la landing. Cada uno tiene futuros en Rofex y un spot de
 referencia, que según el tipo sale de un lugar distinto:
 
   kind "adr"    acción en BYMA (CI / 24hs) + ADR en EE.UU. (Finnhub) → CCL.
-  kind "index"  índice publicado por Rofex (I.RFX20, I.BTC).
+  kind "index"  índice de Rofex (RFX20, calculado con su cartera).
   kind "ext"    referencia externa de Finnhub (sin spot local).
   kind "rate"   futuros de tasa: la referencia es la caución en pesos.
 
@@ -67,17 +67,6 @@ ASSETS: list[Asset] = [
     Asset(
         id="RFX20", label="RFX20", kind="index", fut_root="RFX20", index="I.RFX20",
         basket=RFX20_CARTERA, basket_date=RFX20_CARTERA_FECHA,
-    ),
-    Asset(
-        id="BTC", label="BTC", kind="index", fut_root="BTC", index="I.BTC",
-        ext="BINANCE:BTCUSDT", ext_label="BTC/USD (Binance)",
-    ),
-    # Los futuros de ORO cotizan en USD por onza; la referencia es el ETF GLD
-    # llevado a onza con un factor fijo. Sin teórico ni cartel (la caución es en pesos).
-    Asset(
-        id="ORO", label="ORO", kind="ext", fut_root="ORO", currency="USD",
-        ext="GLD", ext_label="ETF GLD", ext_scale=config.gld_oz_factor,
-        chart="GLD", carry=False,
     ),
     Asset(id="CAUC", label="CAUC", kind="rate", fut_root="CAUC", carry=False),
 ]

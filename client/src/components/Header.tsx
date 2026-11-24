@@ -43,6 +43,7 @@ const CONN_LABEL: Record<ConnState, string> = {
 
 function FeedButton() {
   const feedEnabled = useMarket((s) => s.status?.feedEnabled ?? false);
+  const offHours = useMarket((s) => s.status?.feedActive === false);
   const [pending, setPending] = useState(false);
 
   async function toggle() {
@@ -61,7 +62,9 @@ function FeedButton() {
       ? "Apagando…"
       : "Encendiendo…"
     : feedEnabled
-      ? "⏸ Apagar datos"
+      ? offHours
+        ? "⏸ Apagar (fuera de horario)"
+        : "⏸ Apagar datos"
       : "▶ Encender datos";
 
   const cls = feedEnabled

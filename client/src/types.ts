@@ -67,7 +67,7 @@ export interface FutureQuote extends LocalQuote {
   askDiff?: number | null;
 }
 
-/** Cotización externa (Finnhub): ADR, BTC/USD, ETF GLD. */
+/** Cotización externa (Finnhub): ADR. */
 export interface ExtQuote {
   symbol: string;
   last: number | null;
@@ -169,6 +169,7 @@ export interface UsMarketStatus {
 
 export interface StatusPayload {
   feedEnabled: boolean;
+  feedActive?: boolean; // encendido y en horario de mercado (fuentes conectadas)
   primaryState: ConnState;
   adrState: ConnState;
   market: MarketStatus;

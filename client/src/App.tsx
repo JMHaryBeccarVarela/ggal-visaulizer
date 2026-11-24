@@ -463,6 +463,9 @@ export default function App() {
 
   const snapshot = useMarket((s) => s.snapshot);
   const feedEnabled = useMarket((s) => s.status?.feedEnabled ?? false);
+  const offHours = useMarket(
+    (s) => (s.status?.feedEnabled ?? false) && s.status?.feedActive === false,
+  );
   const asset = useMarket(selectAsset);
   const chart = asset?.chart ?? null;
 
@@ -482,6 +485,13 @@ export default function App() {
           <div className="warn border border-border px-3 py-1">
             <b>Datos en pausa.</b> Encendé la traída en tiempo real con el botón{" "}
             <b>▶ Encender datos</b>.
+          </div>
+        )}
+        {offHours && (
+          <div className="warn border border-border px-3 py-1">
+            <b>Fuera del horario de mercado.</b> El feed está encendido pero desconectado; se
+            reconecta solo cuando abre BYMA (11:00) o NYSE. Los precios son los últimos de la
+            rueda.
           </div>
         )}
 

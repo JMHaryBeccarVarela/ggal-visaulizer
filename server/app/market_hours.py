@@ -85,6 +85,11 @@ def us_market_status() -> dict:
     }
 
 
+def session_open() -> bool:
+    """Hay rueda en BYMA/Rofex o en EE.UU. (el ADR sigue operando después de las 17)."""
+    return is_market_open() or us_market_status()["open"]
+
+
 def days_to_maturity(maturity_date: str | None) -> int:
     """Días corridos hasta un vencimiento 'YYYYMMDD'."""
     if not maturity_date or len(maturity_date) != 8 or not maturity_date.isdigit():
