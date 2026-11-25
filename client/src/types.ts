@@ -9,7 +9,7 @@ export type ConnState =
   | "disabled";
 
 /** Tipo de activo: de dónde sale el spot de referencia. */
-export type AssetKind = "adr" | "index" | "ext" | "rate";
+export type AssetKind = "adr" | "equity" | "index" | "ext" | "rate";
 
 /** Cotización de un instrumento local (acción BYMA, índice o futuro Rofex). */
 export interface LocalQuote {

@@ -155,7 +155,7 @@ export function Widget() {
           <tr>
             <td className="l">
               {asset?.label ?? "—"}{" "}
-              {asset?.kind === "adr"
+              {asset?.kind === "adr" || asset?.kind === "equity"
                 ? asset.spot.used
                 : isRate
                   ? "cauc."
@@ -283,7 +283,7 @@ export function Widget() {
             )}
             <tr>
               <td className="l">Spread</td>
-              <td className={asset?.kind === "adr" ? spreadClass(spread) : ""}>
+              <td className={asset?.kind === "adr" || asset?.kind === "equity" ? spreadClass(spread) : ""}>
                 {spread != null ? fmtPrice(spread, 2) : "—"}
               </td>
               <td className="l">Vol.</td>

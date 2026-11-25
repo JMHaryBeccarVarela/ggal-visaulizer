@@ -213,7 +213,7 @@ class MarketStore:
         entry = self._assets.get(asset_id or "")
         if not asset or not entry:
             return None
-        if asset.kind == "adr":
+        if asset.kind in ("adr", "equity"):
             use_t24 = config.spot_settlement.lower() == "24hs"
             order = (entry["t24"], entry["ci"]) if use_t24 else (entry["ci"], entry["t24"])
             for sym in order:
@@ -496,7 +496,7 @@ class MarketStore:
         )
 
         # ---- spot de referencia según el tipo de activo ----
-        if a.kind == "adr":
+        if a.kind in ("adr", "equity"):
             use_t24 = config.spot_settlement.lower() == "24hs"
             spot_summary = (t24 or ci) if use_t24 else (ci or t24)
             spot_label = "24hs" if spot_summary is t24 else ("CI" if spot_summary else config.spot_settlement)

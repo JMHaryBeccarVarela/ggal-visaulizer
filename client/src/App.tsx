@@ -209,9 +209,11 @@ function SpotTable({ asset }: { asset: AssetSnapshot }) {
           </tr>
         </thead>
         <tbody>
-          {asset.kind === "adr" && (
+          {(asset.kind === "adr" || asset.kind === "equity") && (
             <>
-              <SpotRow name={extLabel ?? "ADR"} market="NYSE/NASDAQ · USD" q={ext} />
+              {asset.kind === "adr" && (
+                <SpotRow name={extLabel ?? "ADR"} market="NYSE/NASDAQ · USD" q={ext} />
+              )}
               <SpotRow
                 name={`${asset.label} 24hs`}
                 market="BYMA · ARS"
@@ -335,7 +337,7 @@ function FuturesTable({
   const carry = asset.carry;
   const cols = carry ? 17 : 14;
   // El semáforo del spread está calibrado para acciones (ticks de $1).
-  const spreadCls = (s: number | null) => (asset.kind === "adr" ? spreadClass(s) : "");
+  const spreadCls = (s: number | null) => (asset.kind === "adr" || asset.kind === "equity" ? spreadClass(s) : "");
   return (
     <div className="overflow-x-auto">
       <table className="xl">
@@ -343,7 +345,7 @@ function FuturesTable({
           <tr>
             <th className="title" colSpan={cols}>
               Futuros {asset.label} (Rofex) · tasas{asset.currency === "USD" ? " en USD" : ""} vs{" "}
-              {asset.kind === "adr" ? `${asset.label} ${asset.spot.used}` : asset.spot.used}
+              {asset.kind === "adr" || asset.kind === "equity" ? `${asset.label} ${asset.spot.used}` : asset.spot.used}
             </th>
           </tr>
           <tr>

@@ -3,6 +3,7 @@ Activos que muestra la landing. Cada uno tiene futuros en Rofex y un spot de
 referencia, que según el tipo sale de un lugar distinto:
 
   kind "adr"    acción en BYMA (CI / 24hs) + ADR en EE.UU. (Finnhub) → CCL.
+  kind "equity" acción en BYMA (CI / 24hs) sin ADR.
   kind "index"  índice de Rofex (RFX20, calculado con su cartera).
   kind "ext"    referencia externa de Finnhub (sin spot local).
   kind "rate"   futuros de tasa: la referencia es la caución en pesos.
@@ -20,7 +21,7 @@ from .config import config
 class Asset:
     id: str
     label: str
-    kind: str                    # "adr" | "index" | "ext" | "rate"
+    kind: str                    # "adr" | "equity" | "index" | "ext" | "rate"
     fut_root: str                # raíz de los futuros en Rofex ("GGAL" → GGAL/DIC26)
     currency: str = "ARS"        # moneda de los futuros
     equity: str | None = None    # ticker de la acción en BYMA
@@ -60,6 +61,7 @@ ASSETS: list[Asset] = [
         id="YPFD", label="YPFD", kind="adr", fut_root="YPFD",
         equity="YPFD", ext="YPF", ext_label="ADR YPF", ratio=10, chart="YPF",
     ),
+    Asset(id="TXAR", label="TXAR", kind="equity", fut_root="TXAR", equity="TXAR"),
     # Primary solo publica el cierre de I.RFX20, así que el índice se calcula en
     # vivo con la cartera vigente de A3 Mercados (a3mercados.com.ar/info-de-mercado/
     # indices/rofex20). Con los cierres 24hs reproduce el valor oficial exacto.
